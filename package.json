@@ -1,0 +1,12 @@
+{
+  "name": "folio-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Folio student finance workspace monorepo",
+  "dependencies": {
+    "next": "^14.2.35"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
