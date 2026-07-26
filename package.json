@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Folio student finance workspace monorepo",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "start": "npm --prefix frontend run start"
+  },
   "dependencies": {
     "next": "^14.2.35"
   },
