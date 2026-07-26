@@ -1,0 +1,24 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: folio-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/folio}
+    username: ${DB_USERNAME:folio}
+    password: ${DB_PASSWORD:folio}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
