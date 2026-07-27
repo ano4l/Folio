@@ -504,7 +504,7 @@ export default function FolioApp() {
             <span><FolderOpen size={19} /></span>
             <div>
               <b>Folio</b>
-              <small>Student financial documents, understood.</small>
+              <small>Student financial documents understood.</small>
             </div>
           </div>
           <h1>Your funding paperwork, finally clear.</h1>
@@ -621,7 +621,7 @@ export default function FolioApp() {
           <span><FolderOpen size={17} /></span>
           <div>
             <b>Folio</b>
-            <small>Financial documents, understood</small>
+            <small>Financial documents understood</small>
           </div>
         </div>
 
