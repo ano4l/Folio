@@ -471,7 +471,7 @@ export default function FolioApp() {
     }, 1200);
   };
 
-  // Export audit logs action
+  // Export audit logs
   const handleExportLogs = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(auditLogs, null, 2));
     const downloadAnchor = document.createElement('a');
