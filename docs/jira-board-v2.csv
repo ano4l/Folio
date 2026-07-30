@@ -1,0 +1,104 @@
+Issue Key,Issue Type,Summary,Description,Epic,Priority,Status,Sprint,Labels
+FOLIO-1,Epic,User Login & Security,Get students safely in and out of Folio using their Eduvos account,Phase 0 — Prototype,High,Done,Sprint 0,auth
+FOLIO-2,Story,Login and MFA Screens,Email password screen six-digit MFA entry resend timer and error messages,Phase 0 — Prototype,High,Done,Sprint 0,auth frontend
+FOLIO-3,Sub-task,Email and password entry screen,Input fields for institutional email and password with a sign-in button,Phase 0 — Prototype,High,Done,Sprint 0,auth frontend
+FOLIO-4,Sub-task,Six-digit MFA code entry,Six individual input boxes that auto-advance with a resend countdown timer,Phase 0 — Prototype,High,Done,Sprint 0,auth frontend
+FOLIO-5,Sub-task,Sign out flow,Profile menu sign-out button that returns the user to the login screen,Phase 0 — Prototype,Medium,Done,Sprint 0,auth frontend
+FOLIO-6,Epic,Dashboard Overview,Give students a clear landing page that summarises their documents and upcoming tasks,Phase 0 — Prototype,High,Done,Sprint 0,dashboard
+FOLIO-7,Story,Dashboard Layout and Stats,Welcome heading summary stat cards active timelines and recent documents,Phase 0 — Prototype,High,Done,Sprint 0,dashboard frontend
+FOLIO-8,Sub-task,Summary stat cards,Cards showing document count pending obligations AI summaries and compliance health,Phase 0 — Prototype,High,Done,Sprint 0,dashboard frontend
+FOLIO-9,Sub-task,Active timelines preview,Show the next three upcoming deadlines with urgency indicators,Phase 0 — Prototype,Medium,Done,Sprint 0,dashboard frontend
+FOLIO-10,Sub-task,Recent documents list,Show the latest uploaded documents with type tags and confidence,Phase 0 — Prototype,Medium,Done,Sprint 0,dashboard frontend
+FOLIO-11,Sub-task,Empty state when no documents exist,Friendly message guiding the student to upload their first document,Phase 0 — Prototype,Low,Planned,Sprint 0,dashboard frontend
+FOLIO-12,Epic,Document Vault,Let students browse search and open their uploaded financial documents,Phase 0 — Prototype,High,Done,Sprint 0,documents
+FOLIO-13,Story,Document List and Filters,Document cards with category tags confidence dates pages and summaries,Phase 0 — Prototype,High,Done,Sprint 0,documents frontend
+FOLIO-14,Sub-task,Document cards with type tags,Each document shows a coloured category tag title summary date and page count,Phase 0 — Prototype,High,Done,Sprint 0,documents frontend
+FOLIO-15,Sub-task,Search bar in the top header,Search input for finding documents and extracted information,Phase 0 — Prototype,Medium,Done,Sprint 0,documents frontend
+FOLIO-16,Sub-task,Open document detail button,Button on each card that opens the full extraction detail view,Phase 0 — Prototype,High,Done,Sprint 0,documents frontend
+FOLIO-17,Epic,Document Upload,Let students securely upload financial documents and see processing progress,Phase 0 — Prototype,High,Done,Sprint 0,upload
+FOLIO-18,Story,Upload Modal and Processing Animation,Drag-and-drop area title input category selector and animated processing steps,Phase 0 — Prototype,High,Done,Sprint 0,upload frontend
+FOLIO-19,Sub-task,Drag-and-drop upload area,Visual dropzone with file size limit and encryption messaging,Phase 0 — Prototype,High,Done,Sprint 0,upload frontend
+FOLIO-20,Sub-task,Document title and category inputs,Text input for naming the document and a dropdown for selecting the document type,Phase 0 — Prototype,High,Done,Sprint 0,upload frontend
+FOLIO-21,Sub-task,Processing progress animation,Spinner and progress bar showing uploading OCR and NLP classification steps,Phase 0 — Prototype,High,Done,Sprint 0,upload frontend
+FOLIO-22,Sub-task,File type and size validation,Check that the file is a supported type and within the size limit before uploading,Phase 0 — Prototype,Medium,Planned,Sprint 0,upload frontend
+FOLIO-23,Epic,Document Detail View,Show students what was extracted from each document with links back to the source,Phase 0 — Prototype,High,Done,Sprint 0,detail
+FOLIO-24,Story,AI Summary and Extracted Entities,Summary box entity cards confidence score and grounded Q&A shortcut button,Phase 0 — Prototype,High,Done,Sprint 0,detail frontend
+FOLIO-25,Sub-task,AI document summary box,Plain-language summary of the document contents and key takeaways,Phase 0 — Prototype,High,Done,Sprint 0,detail frontend
+FOLIO-26,Sub-task,Extracted entity cards,Cards showing extracted fields like amounts dates and conditions with hover highlighting,Phase 0 — Prototype,High,Done,Sprint 0,detail frontend
+FOLIO-27,Sub-task,Confidence score badge,Percentage badge showing how confident the AI is in the extraction,Phase 0 — Prototype,Medium,Done,Sprint 0,detail frontend
+FOLIO-28,Story,Source Document Tabs,Visual preview with highlights OCR text tab and JSON data tab,Phase 0 — Prototype,High,Done,Sprint 0,detail frontend
+FOLIO-29,Sub-task,Visual preview with highlight overlays,Document canvas showing bounding-box highlights when hovering over extracted entities,Phase 0 — Prototype,High,Done,Sprint 0,detail frontend
+FOLIO-30,Sub-task,OCR plain text tab,Tab showing the raw text extracted from the document,Phase 0 — Prototype,Medium,Done,Sprint 0,detail frontend
+FOLIO-31,Sub-task,JSON data tab,Tab showing the structured extraction output in JSON format,Phase 0 — Prototype,Low,Done,Sprint 0,detail frontend
+FOLIO-32,Epic,Ask AI,Let students ask questions about their documents and get answers with source proof,Phase 0 — Prototype,High,Done,Sprint 0,ai
+FOLIO-33,Story,Question and Answer Interface,Question input suggested prompts answer display citations and typing animation,Phase 0 — Prototype,High,Done,Sprint 0,ai frontend
+FOLIO-34,Sub-task,Question input box,Text input where students type questions about their documents,Phase 0 — Prototype,High,Done,Sprint 0,ai frontend
+FOLIO-35,Sub-task,Suggested question prompts,Clickable suggestion chips for common questions like when is my bursary due,Phase 0 — Prototype,Medium,Done,Sprint 0,ai frontend
+FOLIO-36,Sub-task,Answer with source citations,Answer text with linked source documents and page references so students can verify,Phase 0 — Prototype,High,Done,Sprint 0,ai frontend
+FOLIO-37,Sub-task,Typing and loading animation,Animated indicator while the AI is thinking and preparing an answer,Phase 0 — Prototype,Low,Done,Sprint 0,ai frontend
+FOLIO-38,Epic,Deadlines and Notifications,Show students what actions they need to take and when and remind them,Phase 0 — Prototype,Medium,Done,Sprint 0,deadlines
+FOLIO-39,Story,Deadline Timeline,Sorted list of upcoming obligations with urgency colours source links and completion buttons,Phase 0 — Prototype,Medium,Done,Sprint 0,deadlines frontend
+FOLIO-40,Sub-task,Deadline cards with urgency colours,Each deadline shows the action due date days remaining and colour-coded urgency,Phase 0 — Prototype,Medium,Done,Sprint 0,deadlines frontend
+FOLIO-41,Sub-task,Mark as complete button,Button to mark a deadline as done with a success animation,Phase 0 — Prototype,Medium,Done,Sprint 0,deadlines frontend
+FOLIO-42,Sub-task,Source document link,Link from each deadline back to the document it was extracted from,Phase 0 — Prototype,Low,Done,Sprint 0,deadlines frontend
+FOLIO-43,Sub-task,Email notifications using Resend,Send email reminders to students before deadlines are due,Phase 3 — Operations,High,Planned,Sprint 3,deadlines notifications
+FOLIO-44,Sub-task,In-app banner reminders,Show a dismissible banner on the dashboard when a deadline is approaching,Phase 3 — Operations,Medium,Planned,Sprint 3,deadlines notifications
+FOLIO-45,Epic,Security and Audit,Let students see who accessed their documents and control their privacy,Phase 0 — Prototype,High,Done,Sprint 0,security
+FOLIO-46,Story,Security Settings and Audit Log,Security panel sharing toggle audit log table search filter and JSON export,Phase 0 — Prototype,High,Done,Sprint 0,security frontend
+FOLIO-47,Sub-task,Security settings panel,Panel showing encryption status compliance health and sharing controls,Phase 0 — Prototype,High,Done,Sprint 0,security frontend
+FOLIO-48,Sub-task,Sharing consent toggle,Switch that lets students enable or disable sharing their documents with staff,Phase 0 — Prototype,Medium,Done,Sprint 0,security frontend
+FOLIO-49,Sub-task,Audit log table,Table of access events showing time actor action and detail,Phase 0 — Prototype,High,Done,Sprint 0,security frontend
+FOLIO-50,Sub-task,Audit log search and filter,Search box and category dropdown to filter audit entries,Phase 0 — Prototype,Medium,Done,Sprint 0,security frontend
+FOLIO-51,Sub-task,Export audit data as JSON,Button to download the filtered audit log as a JSON file,Phase 0 — Prototype,Low,Done,Sprint 0,security frontend
+FOLIO-52,Epic,Mobile and Responsive Layout,Make sure Folio works well on phones tablets and desktops,Phase 0 — Prototype,High,Done,Sprint 0,mobile
+FOLIO-53,Story,Mobile Navigation and Layout,Bottom navigation bar mobile detail tabs profile dropdown and responsive grids,Phase 0 — Prototype,High,Done,Sprint 0,mobile frontend
+FOLIO-54,Sub-task,Bottom navigation bar,Fixed bottom tab bar for switching between dashboard documents ask deadlines and security,Phase 0 — Prototype,High,Done,Sprint 0,mobile frontend
+FOLIO-55,Sub-task,Mobile document detail tabs,Segmented switch between extracted data and source document on narrow screens,Phase 0 — Prototype,High,Done,Sprint 0,mobile frontend
+FOLIO-56,Sub-task,Profile dropdown menu,Clickable avatar that opens a profile sheet with name email and sign-out,Phase 0 — Prototype,Medium,Done,Sprint 0,mobile frontend
+FOLIO-57,Sub-task,Responsive grid and spacing adjustments,Cards and columns stack vertically on small screens without horizontal overflow,Phase 0 — Prototype,Medium,Done,Sprint 0,mobile frontend
+FOLIO-58,Epic,Backend API Setup,Build the server that handles authentication data storage and business logic,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend
+FOLIO-59,Story,API Foundation and Database,Health check database migrations user table and document table,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend database
+FOLIO-60,Sub-task,Health check endpoint,Simple endpoint that confirms the API is running and healthy,Phase 1 — Secure Pilot,High,Planned,Sprint 1,backend
+FOLIO-61,Sub-task,Database setup and migrations,Create PostgreSQL tables for users documents entities deadlines and audit events,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend database
+FOLIO-62,Sub-task,User authentication middleware,Validate OIDC tokens from Eduvos and identify the logged-in student,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend auth
+FOLIO-63,Story,Document API Endpoints,Endpoints for listing documents getting details creating uploads and deleting,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend api
+FOLIO-64,Sub-task,List documents endpoint,Return paginated documents belonging to the logged-in student,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend api
+FOLIO-65,Sub-task,Document detail endpoint,Return a single document with summary entities confidence and source references,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend api
+FOLIO-66,Sub-task,Create document endpoint,Accept upload completion and create a processing record in the database,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,backend api
+FOLIO-67,Epic,Secure File Storage,Store uploaded documents safely and only let the right person access them,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,storage
+FOLIO-68,Story,Encrypted Object Storage,Signed upload URLs encrypted storage file validation and signed download URLs,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,storage backend
+FOLIO-69,Sub-task,Signed upload URLs,Give the browser a temporary URL to upload directly to storage without going through the API,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,storage backend
+FOLIO-70,Sub-task,File type and size validation,Check file signature type and size before accepting the upload,Phase 1 — Secure Pilot,High,Planned,Sprint 1,storage security
+FOLIO-71,Sub-task,Encrypted storage configuration,Configure S3 bucket with encryption private access and retention rules,Phase 1 — Secure Pilot,Highest,Planned,Sprint 1,storage security
+FOLIO-72,Sub-task,Signed download URLs,Give the browser a temporary URL to preview or download a document,Phase 1 — Secure Pilot,High,Planned,Sprint 1,storage backend
+FOLIO-73,Epic,OCR and Document Processing,Turn uploaded PDFs and images into searchable text and structured data,Phase 2 — Intelligence,High,Planned,Sprint 2,processing ai
+FOLIO-74,Story,OCR Pipeline,Extract text from PDFs and scanned images and track processing state,Phase 2 — Intelligence,High,Planned,Sprint 2,processing
+FOLIO-75,Sub-task,PDF text extraction,Pull selectable text from digital PDF documents,Phase 2 — Intelligence,High,Planned,Sprint 2,processing
+FOLIO-76,Sub-task,Scanned image OCR,Run OCR on photographed or scanned documents to extract text,Phase 2 — Intelligence,High,Planned,Sprint 2,processing
+FOLIO-77,Sub-task,Processing state tracking,Track each document through uploading scanning OCR classifying and ready states,Phase 2 — Intelligence,High,Planned,Sprint 2,processing
+FOLIO-78,Story,Classification and Entity Extraction,Categorise documents and pull out amounts dates conditions and actions,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai processing
+FOLIO-79,Sub-task,Document classification,Automatically label each document as NSFAS bursary fee statement bank letter or appeal,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai processing
+FOLIO-80,Sub-task,Entity extraction,Pull out key fields like amounts due dates institutions account purposes and funding status,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai processing
+FOLIO-81,Sub-task,Summary generation,Generate a short plain-language summary of what the document says,Phase 2 — Intelligence,High,Planned,Sprint 2,ai processing
+FOLIO-82,Sub-task,Confidence scoring,Attach a confidence percentage to each extracted field and overall document,Phase 2 — Intelligence,Medium,Planned,Sprint 2,ai processing
+FOLIO-83,Epic,AI Answer Engine,Let students ask questions and get answers backed by their own documents,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai retrieval
+FOLIO-84,Story,Retrieval and Answer Generation,Chunk documents generate embeddings retrieve authorised context and generate cited answers,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai retrieval
+FOLIO-85,Sub-task,Document chunking,Split OCR text into page-aware chunks that keep their source location,Phase 2 — Intelligence,High,Planned,Sprint 2,retrieval
+FOLIO-86,Sub-task,Embeddings and vector storage,Convert chunks into embeddings and store them with ownership metadata,Phase 2 — Intelligence,High,Planned,Sprint 2,retrieval
+FOLIO-87,Sub-task,Authorised retrieval,Search only the current students chunks and block access to anyone elses,Phase 2 — Intelligence,Highest,Planned,Sprint 2,retrieval security
+FOLIO-88,Sub-task,Answer generation with citations,Generate an answer from retrieved chunks and attach source citations,Phase 2 — Intelligence,Highest,Planned,Sprint 2,ai
+FOLIO-89,Sub-task,Abstention when no evidence,Show a clear message when the AI cannot find enough evidence to answer,Phase 2 — Intelligence,High,Planned,Sprint 2,ai
+FOLIO-90,Epic,Privacy and POPIA Compliance,Give students control over their data including export deletion and consent,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy
+FOLIO-91,Story,Data Export and Deletion,Let students download or permanently delete their documents and data,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy
+FOLIO-92,Sub-task,Data export workflow,Let students request a download of all their documents and extracted data,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy
+FOLIO-93,Sub-task,Data deletion workflow,Let students permanently delete their documents and all derived data with confirmation,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy
+FOLIO-94,Story,Consent and Staff Access,Let students choose who can see their information and for how long,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy access
+FOLIO-95,Sub-task,Consent grant form,Let students select a recipient purpose and expiry for sharing their data,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy access
+FOLIO-96,Sub-task,Revoke consent,Let students cancel sharing at any time and block future access immediately,Phase 3 — Operations,Highest,Planned,Sprint 3,privacy access
+FOLIO-97,Sub-task,Staff read-only view,Let authorised staff view shared summaries without being able to edit or download,Phase 3 — Operations,High,Planned,Sprint 3,access
+FOLIO-98,Epic,Deployment and Hosting,Put Folio on the internet so students can access it from anywhere,Phase 1 — Secure Pilot,High,Planned,Sprint 1,deployment
+FOLIO-99,Story,Frontend and Backend Deployment,Deploy the web app to Vercel and the API to Railway with environment configuration,Phase 1 — Secure Pilot,High,Planned,Sprint 1,deployment
+FOLIO-100,Sub-task,Frontend deployment to Vercel,Connect the repository to Vercel and configure build settings,Phase 1 — Secure Pilot,High,In Progress,Sprint 1,deployment
+FOLIO-101,Sub-task,Backend deployment to Railway,Deploy the Spring Boot API to Railway with database and storage connected,Phase 1 — Secure Pilot,High,Planned,Sprint 1,deployment
+FOLIO-102,Sub-task,Environment variable configuration,Set up all required environment variables for OIDC database storage and CORS,Phase 1 — Secure Pilot,High,Planned,Sprint 1,deployment
+FOLIO-103,Sub-task,Custom domain and HTTPS,Configure a custom domain with HTTPS certificates for production,Phase 1 — Secure Pilot,Medium,Planned,Sprint 1,deployment

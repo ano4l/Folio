@@ -163,7 +163,7 @@ function LoginScreen({ onLogin }) {
           </div>
           <div>
             <div className="brand-name">Folio</div>
-            <div className="brand-sub">Student financial documents, understood.</div>
+            <div className="brand-sub">Student financial documents understood.</div>
           </div>
         </div>
         <div className="login-field">
@@ -956,7 +956,7 @@ export default function App() {
               </div>
               <div>
                 <div className="brand-name">Folio</div>
-                <div className="brand-sub">Financial documents, understood</div>
+                <div className="brand-sub">Financial documents understood</div>
               </div>
             </div>
             {NAV.map((n) => (

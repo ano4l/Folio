@@ -411,7 +411,7 @@ export default function FolioApp() {
     }, 1500);
   };
 
-  // AI QA Grounded responses logic
+  // AI QA Grounded responses log
   const handleSendChat = (question = chatInput) => {
     if (!question.trim()) return;
 
@@ -471,7 +471,7 @@ export default function FolioApp() {
     }, 1200);
   };
 
-  // Export audit logs action
+  // Export audit logs
   const handleExportLogs = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(auditLogs, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -504,7 +504,7 @@ export default function FolioApp() {
             <span><FolderOpen size={19} /></span>
             <div>
               <b>Folio</b>
-              <small>Student financial documents, understood.</small>
+              <small>Student financial documents understood.</small>
             </div>
           </div>
           <h1>Your funding paperwork, finally clear.</h1>
@@ -621,7 +621,7 @@ export default function FolioApp() {
           <span><FolderOpen size={17} /></span>
           <div>
             <b>Folio</b>
-            <small>Financial documents, understood</small>
+            <small>Financial documents understood</small>
           </div>
         </div>
 
