@@ -411,7 +411,7 @@ export default function FolioApp() {
     }, 1500);
   };
 
-  // AI QA Grounded responses logic
+  // AI QA Grounded responses log
   const handleSendChat = (question = chatInput) => {
     if (!question.trim()) return;
 
