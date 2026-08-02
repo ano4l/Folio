@@ -734,9 +734,16 @@ export default function FolioApp() {
       recognition.onerror = () => {
         recognitionRef.current = null;
         if (isChat) setVoiceActive(false); else setVoiceSearchActive(false);
-        const fallback = isChat ? "What are my funding award conditions?" : "What files do I need for a graduate job application?";
-        if (isChat) setInput(fallback); else { handleNLSearch(fallback); setSearchOpen(true); setMobileSearchOpen(true); }
-        setToast("Voice is unavailable. An editable example is ready; you can type instead.");
+        const fallback = "What are my funding award conditions?";
+        if (isChat) {
+          setInput(fallback);
+        } else {
+          setSearchQuery("");
+          setSearchResults([]);
+          setSearchOpen(true);
+          setMobileSearchOpen(true);
+        }
+        setToast(isChat ? "Voice is unavailable. An editable example is ready; you can type instead." : "Voice is unavailable. Type your search instead.");
       };
 
       recognition.onend = () => {
@@ -746,9 +753,16 @@ export default function FolioApp() {
 
       recognition.start();
     } else {
-      const fallback = isChat ? "What are my funding award conditions?" : "What files do I need for a graduate job application?";
-      if (isChat) setInput(fallback); else { handleNLSearch(fallback); setSearchOpen(true); setMobileSearchOpen(true); }
-      setToast("Voice input is not supported here. An editable example is ready; you can type instead.");
+      const fallback = "What are my funding award conditions?";
+      if (isChat) {
+        setInput(fallback);
+      } else {
+        setSearchQuery("");
+        setSearchResults([]);
+        setSearchOpen(true);
+        setMobileSearchOpen(true);
+      }
+      setToast(isChat ? "Voice input is not supported here. An editable example is ready; you can type instead." : "Voice input is not supported here. Type your search instead.");
     }
   };
 
@@ -1654,7 +1668,7 @@ export default function FolioApp() {
                 </div>
 
                 <div className="suggestions">
-                  {["What documents support my job application?", "When is my bursary renewal?", "Do I still owe any fees?", "What are my funding award conditions?", "When is proof of registration due?", "Is my bank account confirmed for disbursement?"].map((suggestion) => (
+                  {["When is my bursary renewal?", "Do I still owe any fees?", "What are my funding award conditions?", "When is proof of registration due?", "Is my bank account confirmed for disbursement?"].map((suggestion) => (
                     <button key={suggestion} onClick={() => handleSendChat(suggestion)}>
                       {suggestion}
                     </button>
