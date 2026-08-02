@@ -222,6 +222,7 @@ export default function FolioApp() {
   // Voice command states
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceSearchActive, setVoiceSearchActive] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<"listening" | "transcribing" | null>(null);
 
   // NL Search overlay states
   const [searchQuery, setSearchQuery] = useState("");
@@ -279,6 +280,8 @@ export default function FolioApp() {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
     }
   }, [chatMessages, aiTyping]);
+
+  useEffect(() => () => recognitionRef.current?.stop(), []);
 
   // MFA code resend countdown
   useEffect(() => {
@@ -678,16 +681,26 @@ export default function FolioApp() {
   };
 
   // Voice command handler — uses real Web Speech API, falls back to simulation
-  const handleVoiceInput = (target: "chat" | "search") => {
-    const isChat = target === "chat";
+  const setVoiceSurface = (target: "chat" | "search" | null, status: "listening" | "transcribing" | null = null) => {
+    setVoiceActive(target === "chat");
+    setVoiceSearchActive(target === "search");
+    setVoiceStatus(status);
+  };
 
-    // Stop if already listening
+  const stopVoiceInput = () => {
+    const activeRecognition = recognitionRef.current;
+    recognitionRef.current = null;
+    setVoiceSurface(null);
+    activeRecognition?.stop();
+  };
+
+  const handleVoiceInput = (target: "chat" | "search") => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-      if (isChat) setVoiceActive(false); else setVoiceSearchActive(false);
+      stopVoiceInput();
       return;
     }
+
+    const isChat = target === "chat";
 
     type SpeechRecognitionCtor = new () => {
       lang: string;
@@ -695,7 +708,7 @@ export default function FolioApp() {
       maxAlternatives: number;
       start: () => void;
       stop: () => void;
-      onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null;
+      onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string }; isFinal?: boolean }; length: number } }) => void) | null;
       onerror: (() => void) | null;
       onend: (() => void) | null;
     };
@@ -708,32 +721,29 @@ export default function FolioApp() {
     if (SpeechRecognitionAPI) {
       const recognition = new SpeechRecognitionAPI();
       recognition.lang = "en-ZA";
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.maxAlternatives = 1;
       recognitionRef.current = recognition;
 
-      if (isChat) setVoiceActive(true); else setVoiceSearchActive(true);
+      setVoiceSurface(target, "listening");
       setToast("Listening... speak your question now.");
 
       recognition.onresult = (event) => {
-        const phrase = event.results[0][0].transcript;
-        recognitionRef.current = null;
+        const phrase = Array.from({ length: event.results.length }, (_, index) => event.results[index][0].transcript).join("").trim();
+        const isFinal = Array.from({ length: event.results.length }, (_, index) => event.results[index].isFinal).every(Boolean);
         if (isChat) {
-          setVoiceActive(false);
           setInput(phrase);
-          setToast(`Voice recognised: "${phrase}"`);
         } else {
-          setVoiceSearchActive(false);
           handleNLSearch(phrase);
-          setSearchQuery(phrase);
           setSearchOpen(true);
-          setToast(`Voice search: "${phrase}"`);
         }
+        setVoiceStatus(isFinal ? "transcribing" : "listening");
       };
 
       recognition.onerror = () => {
+        if (recognitionRef.current !== recognition) return;
         recognitionRef.current = null;
-        if (isChat) setVoiceActive(false); else setVoiceSearchActive(false);
+        setVoiceSurface(null);
         const fallback = "What are my funding award conditions?";
         if (isChat) {
           setInput(fallback);
@@ -747,8 +757,10 @@ export default function FolioApp() {
       };
 
       recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
         recognitionRef.current = null;
-        if (isChat) setVoiceActive(false); else setVoiceSearchActive(false);
+        setVoiceSurface(null);
+        setToast(isChat ? "Voice transcription is ready to edit or send." : "Voice search transcription is ready to refine.");
       };
 
       recognition.start();
@@ -1114,11 +1126,13 @@ export default function FolioApp() {
             <button
               className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`}
               aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"}
-              onClick={() => handleVoiceInput("search")}
+              onClick={() => voiceSearchActive ? stopVoiceInput() : handleVoiceInput("search")}
               title="Voice search"
             >
               {voiceSearchActive ? <MicOff size={13} /> : <Mic size={13} />}
             </button>
+            {voiceSearchActive && <button className="voice-stop-btn" type="button" onClick={stopVoiceInput}><MicOff size={12} /> Stop</button>}
+            {voiceSearchActive && <span className="voice-status search-voice-status" role="status"><i />{voiceStatus === "transcribing" ? "Transcribing" : "Listening"}</span>}
             {searchOpen && searchResults.length > 0 && (
               <div className="nl-search-results animate-slide-up">
                 {searchResults.map((result, idx) => (
@@ -1146,8 +1160,10 @@ export default function FolioApp() {
               <div className="search mobile-search-input nl-search-wrapper">
                 <Search size={16} />
                 <input autoFocus aria-label="Search your documents and deadlines" placeholder="Try “graduate job application”" value={searchQuery} onChange={(e) => { handleNLSearch(e.target.value); setSearchOpen(true); }} />
-                <button className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`} type="button" aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"} onClick={() => handleVoiceInput("search")}>{voiceSearchActive ? <MicOff size={14} /> : <Mic size={14} />}</button>
+                <button className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`} type="button" aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"} onClick={() => voiceSearchActive ? stopVoiceInput() : handleVoiceInput("search")}>{voiceSearchActive ? <MicOff size={14} /> : <Mic size={14} />}</button>
+                {voiceSearchActive && <button className="voice-stop-btn" type="button" onClick={stopVoiceInput}><MicOff size={12} /> Stop</button>}
               </div>
+              {voiceSearchActive && <p className="voice-status mobile-voice-status" role="status"><i />{voiceStatus === "transcribing" ? "Transcribing your search" : "Listening for your search"}</p>}
               <p className="mobile-search-help">Use voice where available, or type any question. Results are grounded in your Folio documents.</p>
               {searchResults.length > 0 ? <div className="mobile-search-results">{searchResults.map((result, idx) => <button key={idx} className="nl-result-item" onClick={result.action}><span className={`nl-result-type-dot ${result.type}`} /><div><b>{result.title}</b><small>{result.detail}</small></div><ChevronRight size={14} className="muted" style={{ marginLeft: "auto", flexShrink: 0 }} /></button>)}</div> : searchQuery.length > 1 && <div className="mobile-search-results"><div className="nl-no-results"><small>Try a topic such as funding, renewal, fees, registration, or bank confirmation.</small></div></div>}
             </div>
@@ -1675,10 +1691,11 @@ export default function FolioApp() {
                   ))}
                 </div>
 
+                {voiceActive && <p className="voice-status chat-voice-status" role="status"><i />{voiceStatus === "transcribing" ? "Transcribing your question — you can edit it when ready." : "Listening — your words appear here as you speak."}</p>}
                 <div className="chat-input">
                   <button
                     className={`voice-chat-btn ${voiceActive ? "voice-active" : ""}`}
-                    onClick={() => handleVoiceInput("chat")}
+                    onClick={() => voiceActive ? stopVoiceInput() : handleVoiceInput("chat")}
                     title="Speak your question"
                   >
                     {voiceActive ? <MicOff size={15} /> : <Mic size={15} />}
@@ -1689,6 +1706,7 @@ export default function FolioApp() {
                     onKeyDown={(e) => e.key === "Enter" && handleSendChat()}
                     placeholder={voiceActive ? "Listening..." : "Ask or speak about funding, conditions, fees..."}
                   />
+                  {voiceActive && <button className="voice-stop-btn chat-stop-btn" type="button" onClick={stopVoiceInput}><MicOff size={13} /> Stop</button>}
                   <button className="primary" onClick={() => handleSendChat()} disabled={aiTyping}>
                     <Send size={15} />
                   </button>
