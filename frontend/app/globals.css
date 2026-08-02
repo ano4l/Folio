@@ -2318,6 +2318,11 @@ button {
 .nl-search-wrapper {
   position: relative;
 }
+
+.mobile-search-trigger,
+.mobile-search-sheet {
+  display: none;
+}
 .voice-search-btn {
   display: flex;
   align-items: center;
@@ -2809,4 +2814,25 @@ button {
 .dropzone-filled {
   border-color: var(--success) !important;
   background: var(--success-light) !important;
+}
+
+@media (max-width: 480px) {
+  .mobile-search-trigger { display: inline-flex !important; align-items: center; gap: 6px; margin-left: auto; margin-right: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 700; }
+  .mobile-search-sheet { display: block; position: fixed; inset: 0; z-index: 500; overflow-y: auto; background: var(--card); padding: max(20px, env(safe-area-inset-top)) 16px 32px; }
+  .mobile-search-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: var(--ink); }
+  .mobile-search-sheet-head b { font-family: 'Fraunces', Georgia, serif; font-size: 20px; }
+  .mobile-search-sheet-head button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink); }
+  .mobile-search-input { display: flex !important; width: 100%; padding: 12px 14px; }
+  .mobile-search-help { margin: 10px 2px 16px; font-size: 12.5px; line-height: 1.45; color: var(--slate); }
+  .mobile-search-results { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); }
+  .mobile-search-results .nl-result-item { min-height: 62px; }
+  .chat-screen .chat { height: calc(100vh - 205px); min-height: 480px; }
+  .chat-log { padding: 16px; gap: 12px; }
+  .message { max-width: 94%; }
+  .message > div { padding: 12px 14px; }
+  .suggestions { flex-wrap: nowrap; overflow-x: auto; padding: 0 16px 12px; }
+  .suggestions button { flex: 0 0 auto; }
+  .chat-input { gap: 8px; padding: 12px 16px; position: sticky; bottom: 64px; }
+  .chat-input input { min-width: 0; padding: 11px 12px; }
+  .voice-chat-btn { width: 40px; height: 40px; }
 }

@@ -226,6 +226,7 @@ export default function FolioApp() {
   // NL Search overlay states
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<{ type: "doc" | "deadline" | "ai"; title: string; detail: string; action?: () => void }[]>([]);
 
   // Calendar view state for Deadlines screen
@@ -255,7 +256,7 @@ export default function FolioApp() {
   const [chatMessages, setMessages] = useState<Array<{ role: "assistant" | "user"; text: string; sourceDoc?: string; sourcePage?: number; sources?: { doc: string; detail: string }[] }>>([
     {
       role: "assistant",
-      text: "Hello! I am your secure Folio document assistant. I only pull details from files in your encrypted vault. What details do you need checked?",
+      text: "Hi, I can help you check funding conditions, bursary renewal, fees, proof of registration, and bank confirmation. Every answer is grounded in a document in your vault.",
     },
   ]);
   const [aiTyping, setAiTyping] = useState(false);
@@ -534,6 +535,14 @@ export default function FolioApp() {
         matchedDoc = "Government Funding Award Letter — 2026";
         matchedPage = 1;
         citations = [{ doc: "Government Funding Award Letter — 2026", detail: "Page 1, Paragraph 3: Award Allocations and Registration proof timelines" }];
+      } else if (q.includes("proof") || q.includes("registration") || q.includes("register")) {
+        responseText = "Your Government Funding Award Letter requires proof of registration within 30 days of term start. The linked deadline is 12 February 2026. Staying registered full-time is also a condition of the award.";
+        matchedDoc = "Government Funding Award Letter — 2026";
+        citations = [{ doc: "Government Funding Award Letter — 2026", detail: "Page 1, Proof of registration requirement" }];
+      } else if (q.includes("bank") || q.includes("disbursement") || q.includes("account") || q.includes("confirmation")) {
+        responseText = "Your Standard Bank Account Confirmation verifies an active transactional account ending in 192. It is validated for financial-aid disbursement deposits and records no restrictions.";
+        matchedDoc = "Standard Bank Account Confirmation";
+        citations = [{ doc: "Standard Bank Account Confirmation", detail: "Page 1, Account verification for disbursement" }];
       } else {
         responseText = "Based on the documents in your secure vault, you currently have 3 upcoming tasks. The most urgent is submitting proof of registration by 12 February 2026 (3 days left). Your bursary renewal declaration is due 02 August 2026.";
         matchedDoc = "Government Funding Award Letter — 2026";
@@ -614,6 +623,31 @@ export default function FolioApp() {
     if (!query.trim()) { setSearchResults([]); return; }
     const q = query.toLowerCase();
     const results: typeof searchResults = [];
+    const closeIntentSearch = () => { setSearchOpen(false); setMobileSearchOpen(false); setSearchQuery(""); };
+    const addDocByType = (type: DocType) => {
+      const doc = documents.find((item) => item.type === type);
+      if (doc) results.push({ type: "doc", title: doc.title, detail: `${doc.type} · ${doc.date}`, action: () => { setSelectedDoc(doc); setScreen("documents"); closeIntentSearch(); } });
+    };
+    const addDeadlineByType = (type: DocType) => {
+      const doc = documents.find((item) => item.type === type);
+      const deadline = doc && deadlines.find((item) => item.doc === doc.title);
+      if (deadline) results.push({ type: "deadline", title: deadline.action, detail: `Due: ${deadline.due} · from ${deadline.doc}`, action: () => { setScreen("deadlines"); closeIntentSearch(); } });
+    };
+    const has = (...terms: string[]) => terms.some((term) => q.includes(term));
+    let intentMatched = false;
+    if (has("interview", "apply", "application", "engineer", "graduate", "job", "career")) {
+      intentMatched = true; addDocByType("Funding Award Letter"); addDocByType("Bursary Agreement"); addDocByType("Fee Statement");
+      results.push({ type: "ai", title: "Open graduate-application summary", detail: "Grounded in your funding, bursary, and fee documents.", action: () => { setInput("Draft a summary of my job application documents"); setScreen("ask"); closeIntentSearch(); } });
+    }
+    if (has("funding", "award", "condition", "average", "allowance", "proof", "registration")) { intentMatched = true; addDocByType("Funding Award Letter"); addDeadlineByType("Funding Award Letter"); }
+    if (has("bursary", "renew", "transcript", "declaration")) { intentMatched = true; addDocByType("Bursary Agreement"); addDeadlineByType("Bursary Agreement"); }
+    if (has("fee", "fees", "payment", "pay", "balance", "owe", "statement")) { intentMatched = true; addDocByType("Fee Statement"); addDeadlineByType("Fee Statement"); }
+    if (has("bank", "disbursement", "account", "confirmation")) { intentMatched = true; addDocByType("Bank Letter"); }
+    if (intentMatched) {
+      if (!results.some((result) => result.type === "ai")) results.push({ type: "ai", title: "Ask AI for a grounded summary", detail: "Open an answer with document citations.", action: () => { setInput(query); setScreen("ask"); closeIntentSearch(); } });
+      setSearchResults(results);
+      return;
+    }
 
     documents.forEach((doc) => {
       if (
@@ -700,7 +734,9 @@ export default function FolioApp() {
       recognition.onerror = () => {
         recognitionRef.current = null;
         if (isChat) setVoiceActive(false); else setVoiceSearchActive(false);
-        setToast("Microphone access denied or unavailable.");
+        const fallback = isChat ? "What are my funding award conditions?" : "What files do I need for a graduate job application?";
+        if (isChat) setInput(fallback); else { handleNLSearch(fallback); setSearchOpen(true); setMobileSearchOpen(true); }
+        setToast("Voice is unavailable. An editable example is ready; you can type instead.");
       };
 
       recognition.onend = () => {
@@ -710,29 +746,9 @@ export default function FolioApp() {
 
       recognition.start();
     } else {
-      // Fallback simulation for browsers without Speech API
-      if (isChat) setVoiceActive(true); else setVoiceSearchActive(true);
-      setToast("Listening... (demo mode)");
-      setTimeout(() => {
-        const simulatedPhrases = [
-          "when is my next payment due",
-          "show me my bursary renewal conditions",
-          "what files do I need for a software engineering job application",
-          "read me the conditions on my award"
-        ];
-        const phrase = simulatedPhrases[Math.floor(Math.random() * simulatedPhrases.length)];
-        if (isChat) {
-          setVoiceActive(false);
-          setInput(phrase);
-          setToast(`Voice recognised: "${phrase}"`);
-        } else {
-          setVoiceSearchActive(false);
-          handleNLSearch(phrase);
-          setSearchQuery(phrase);
-          setSearchOpen(true);
-          setToast(`Voice search: "${phrase}"`);
-        }
-      }, 2000);
+      const fallback = isChat ? "What are my funding award conditions?" : "What files do I need for a graduate job application?";
+      if (isChat) setInput(fallback); else { handleNLSearch(fallback); setSearchOpen(true); setMobileSearchOpen(true); }
+      setToast("Voice input is not supported here. An editable example is ready; you can type instead.");
     }
   };
 
@@ -1048,6 +1064,10 @@ export default function FolioApp() {
             <b>Folio</b>
           </div>
 
+          <button className="mobile-search-trigger mobile-only" type="button" onClick={() => { setMobileSearchOpen(true); setSearchOpen(true); }} aria-label="Search documents and ask Folio AI">
+            <Search size={16} /> <span>Search</span>
+          </button>
+
           <div className="search desktop-only nl-search-wrapper">
             <Search size={15} />
             <input
@@ -1080,7 +1100,7 @@ export default function FolioApp() {
             <button
               className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`}
               aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"}
-              onMouseDown={(e) => { e.preventDefault(); handleVoiceInput("search"); }}
+              onClick={() => handleVoiceInput("search")}
               title="Voice search"
             >
               {voiceSearchActive ? <MicOff size={13} /> : <Mic size={13} />}
@@ -1088,7 +1108,7 @@ export default function FolioApp() {
             {searchOpen && searchResults.length > 0 && (
               <div className="nl-search-results animate-slide-up">
                 {searchResults.map((result, idx) => (
-                  <button key={idx} className="nl-result-item" onMouseDown={result.action}>
+                  <button key={idx} className="nl-result-item" onClick={result.action}>
                     <span className={`nl-result-type-dot ${result.type}`} />
                     <div>
                       <b>{result.title}</b>
@@ -1105,6 +1125,19 @@ export default function FolioApp() {
               </div>
             )}
           </div>
+
+          {mobileSearchOpen && (
+            <div className="mobile-search-sheet" role="dialog" aria-modal="true" aria-label="Search Folio documents">
+              <div className="mobile-search-sheet-head"><b>Search your vault</b><button type="button" aria-label="Close search" onClick={() => { setMobileSearchOpen(false); setSearchOpen(false); }}><X size={18} /></button></div>
+              <div className="search mobile-search-input nl-search-wrapper">
+                <Search size={16} />
+                <input autoFocus aria-label="Search your documents and deadlines" placeholder="Try “graduate job application”" value={searchQuery} onChange={(e) => { handleNLSearch(e.target.value); setSearchOpen(true); }} />
+                <button className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`} type="button" aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"} onClick={() => handleVoiceInput("search")}>{voiceSearchActive ? <MicOff size={14} /> : <Mic size={14} />}</button>
+              </div>
+              <p className="mobile-search-help">Use voice where available, or type any question. Results are grounded in your Folio documents.</p>
+              {searchResults.length > 0 ? <div className="mobile-search-results">{searchResults.map((result, idx) => <button key={idx} className="nl-result-item" onClick={result.action}><span className={`nl-result-type-dot ${result.type}`} /><div><b>{result.title}</b><small>{result.detail}</small></div><ChevronRight size={14} className="muted" style={{ marginLeft: "auto", flexShrink: 0 }} /></button>)}</div> : searchQuery.length > 1 && <div className="mobile-search-results"><div className="nl-no-results"><small>Try a topic such as funding, renewal, fees, registration, or bank confirmation.</small></div></div>}
+            </div>
+          )}
 
           <div className="header-actions">
             <div className="popia-compliant-pill desktop-only">
@@ -1621,7 +1654,7 @@ export default function FolioApp() {
                 </div>
 
                 <div className="suggestions">
-                  {["When is my bursary renewal?", "Do I still owe any fees?", "What are my funding award conditions?", "Draft a summary of my interview-prep documents"].map((suggestion) => (
+                  {["What documents support my job application?", "When is my bursary renewal?", "Do I still owe any fees?", "What are my funding award conditions?", "When is proof of registration due?", "Is my bank account confirmed for disbursement?"].map((suggestion) => (
                     <button key={suggestion} onClick={() => handleSendChat(suggestion)}>
                       {suggestion}
                     </button>
@@ -1631,7 +1664,7 @@ export default function FolioApp() {
                 <div className="chat-input">
                   <button
                     className={`voice-chat-btn ${voiceActive ? "voice-active" : ""}`}
-                    onMouseDown={(e) => { e.preventDefault(); handleVoiceInput("chat"); }}
+                    onClick={() => handleVoiceInput("chat")}
                     title="Speak your question"
                   >
                     {voiceActive ? <MicOff size={15} /> : <Mic size={15} />}
