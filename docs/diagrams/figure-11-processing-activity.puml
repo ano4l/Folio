@@ -1,0 +1,46 @@
+@startuml
+title Folio Document Processing Activity
+
+skinparam dpi 150
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam titleFontSize 20
+skinparam titleFontColor #0B2D63
+skinparam ArrowColor #1B5CAA
+skinparam activity {
+  BackgroundColor #F3F7FC
+  BorderColor #1B5CAA
+  DiamondBackgroundColor #E7EEF8
+  DiamondBorderColor #0B2D63
+  FontColor #111111
+  StartColor #0B2D63
+  EndColor #0B2D63
+}
+
+start
+:Student selects a supported file;
+:Mobile client validates file type and size;
+
+if (Input valid?) then (Yes)
+  :Upload through a short-lived signed URL\nto private object storage;
+  :Create the document record\nand queue processing;
+  :Scan, OCR, classify and extract\nwith page-level provenance;
+
+  if (Safe and readable?) then (Yes)
+    if (Confidence sufficient?) then (Yes)
+      :Store versioned results\nand set status to READY;
+    else (No)
+      :Set status to REVIEW_REQUIRED;
+    endif
+  else (No)
+    :Set status to FAILED;
+  endif
+else (No)
+  :Reject upload with a clear\nvalidation message;
+endif
+
+:Show progress, evidence and\nretry or review action;
+stop
+@enduml

@@ -1,0 +1,204 @@
+@startuml Folio_Architecture
+' ==============================================================================
+' Figure 9. Proposed Folio High-Level System Architecture
+' Standard enterprise layered architecture
+' ==============================================================================
+
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam defaultTextAlignment center
+skinparam roundCorner 6
+skinparam nodesep 45
+skinparam ranksep 55
+
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #1E293B
+  FontSize 12
+  FontStyle bold
+}
+
+' Tier boundaries
+skinparam rectangle {
+  BorderThickness 1.2
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+  FontSize 12
+  FontStyle bold
+}
+
+' Component colours by stereotype
+skinparam component {
+  BorderThickness 1.2
+  BackgroundColor<<client>>  #EBF3FA
+  BorderColor<<client>>      #2B5797
+  BackgroundColor<<api>>     #EBF8F2
+  BorderColor<<api>>         #1B6E48
+  BackgroundColor<<async>>   #FFFBEB
+  BorderColor<<async>>       #B45309
+}
+skinparam queue {
+  BorderThickness 1.2
+  BackgroundColor<<async>>   #FFFBEB
+  BorderColor<<async>>       #B45309
+}
+skinparam database {
+  BorderThickness 1.2
+  BackgroundColor<<store>>   #F1F5F9
+  BorderColor<<store>>       #475569
+}
+
+skinparam arrow {
+  Color #334155
+  FontColor #1E293B
+  FontSize 10
+  Thickness 1.2
+}
+
+hide stereotype
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Student & Authorised Staff" as User
+
+' ==============================================================================
+' TIER 1: PRESENTATION LAYER
+' ==============================================================================
+rectangle "Tier 1: Presentation Layer (Client Applications)" as T1 {
+
+  component Web <<client>> [
+    <b>Web Client</b>
+    <size:9><i>Next.js 14 · React 18 · TypeScript</i></size>
+    ----
+    <size:10>Responsive application dashboard
+    Document vault & interactive viewer
+    Grounded AI chat interface
+    Deadline & consent management</size>
+  ]
+
+  component Mobile <<client>> [
+    <b>Mobile Client</b>
+    <size:9><i>Flutter · Dart / iOS SwiftUI</i></size>
+    ----
+    <size:10>Camera & document scanner
+    Biometric & passcode authentication
+    Real-time speech input (STT / TTS)
+    Push deadline reminders</size>
+  ]
+}
+
+' ==============================================================================
+' TIER 2: SYNCHRONOUS APPLICATION SERVICES
+' ==============================================================================
+rectangle "Tier 2: Application Services Layer (Synchronous Core)" as T2 {
+
+  component API <<api>> [
+    <b>Spring Boot 3 REST API</b>
+    <size:9><i>Java 21 · Spring Security</i></size>
+    ----
+    <size:10>Authentication, MFA verification & RBAC
+    Document metadata & presigned URL generator
+    Grounded AI: scoped retrieval, citations & abstention
+    Deadline engine & POPIA consent verification
+    Immutable audit logging & credit metering</size>
+  ]
+}
+
+' ==============================================================================
+' TIER 3: ASYNCHRONOUS INTELLIGENCE PIPELINE
+' ==============================================================================
+rectangle "Tier 3: Asynchronous Intelligence Pipeline" as T3 {
+
+  queue Queue <<async>> [
+    <b>Processing Queue</b>
+    <size:9><i>FIFO Queue</i></size>
+    ----
+    <size:10>Asynchronous job dispatch
+    Retry management & dead-letter queue
+    Status & failure telemetry</size>
+  ]
+
+  component Worker <<async>> [
+    <b>Processing Worker</b>
+    <size:9><i>Queue-backed service</i></size>
+    ----
+    <size:10>1. Malware scan & MIME check
+    2. Optical character recognition
+    3. Entity & deadline extraction
+    4. Text chunking & vector indexing</size>
+  ]
+
+  component Model <<async>> [
+    <b>AI Model Adapter</b>
+    <size:9><i>OCR & LLM provider API</i></size>
+    ----
+    <size:10>Layout-aware OCR parsing
+    Structured entity mapping
+    Embedding & grounded inference</size>
+  ]
+}
+
+' ==============================================================================
+' TIER 4: PERSISTENCE & STORAGE LAYER
+' ==============================================================================
+rectangle "Tier 4: Persistence & Storage Layer" as T4 {
+
+  database DB <<store>> [
+    <b>PostgreSQL 16 Database</b>
+    <size:9><i>Relational DB · Flyway migrations</i></size>
+    ----
+    <size:10>User accounts, credentials & sessions
+    Document metadata & extraction versions
+    Deadlines, queries & consent grants
+    Append-only audit trail</size>
+  ]
+
+  database S3 <<store>> [
+    <b>Private Object Storage</b>
+    <size:9><i>S3-compatible · AES-256 encrypted</i></size>
+    ----
+    <size:10>Encrypted master source documents
+    Safe PDF & derivative artefacts
+    Access only via short-lived signed URLs
+    Zero public bucket permissions</size>
+  ]
+}
+
+' ==============================================================================
+' RELATIONSHIPS & DATA FLOW
+' ==============================================================================
+User -down-> Web
+User -down-> Mobile
+
+Web -down-> API : HTTPS / REST + JSON\n[Bearer session token]
+Mobile -down-> API : HTTPS / REST + JSON\n[Bearer session token]
+
+API -right-> Queue : 1. Enqueue ingestion job\n[document id, metadata]
+Queue -down-> Worker : 2. Dequeue task
+Worker -right-> Model : 3. OCR & extraction\ninference calls
+
+API -down-> DB : Query / persist metadata,\nconsent & audit records
+Worker -down-> DB : 5. Save extracted entities,\ndeadlines & search vectors
+
+API -down-> S3 : Issue presigned URLs &\nverify upload arrival
+Worker -down-> S3 : 4. Read source bytes /\nwrite safe derivatives
+
+' Direct upload bypass
+Mobile .down.> S3 : Direct PUT (file bytes)\n[via presigned URL]
+
+DB -[hidden]right- S3
+
+' ==============================================================================
+' FOOTNOTE
+' ==============================================================================
+legend bottom
+  |= Legend & architecture principles |
+  | <b>Synchronous calls</b>: solid arrows denote synchronous HTTPS / database client interactions. |
+  | <b>Direct upload</b>: dashed arrow denotes client-to-storage upload via presigned URL, keeping file bytes out of API memory. |
+  | <b>Deployment</b>: containerised on Railway with Docker parity for web, API, worker and PostgreSQL. |
+  | <b>Operational separation</b>: operators see queue throughput, retries and error classes, never document content. |
+endlegend
+
+@enduml

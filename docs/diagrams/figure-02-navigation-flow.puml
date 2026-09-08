@@ -1,0 +1,60 @@
+@startuml
+title Folio Mobile Screen Navigation
+
+skinparam dpi 150
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam titleFontSize 20
+skinparam titleFontColor #0B2D63
+skinparam linetype ortho
+skinparam nodesep 38
+skinparam ranksep 42
+skinparam ArrowColor #1B5CAA
+skinparam rectangle {
+  BackgroundColor #F3F7FC
+  BorderColor #1B5CAA
+  FontColor #111111
+  RoundCorner 14
+}
+skinparam note {
+  BackgroundColor #FFFDEB
+  BorderColor #9A8A3A
+  FontColor #222222
+}
+
+top to bottom direction
+
+rectangle "Folio Secure Sign In" as SignIn
+rectangle "MFA Verification" as MFA
+rectangle "Dashboard" as Dashboard
+rectangle "Persistent Mobile Navigation\nHome | Documents | Ask | Profile" as Nav
+
+rectangle "Document Vault" as Vault
+rectangle "Ask AI\nAnswer | Citation" as AskAI
+rectangle "Deadlines\nCalendar | Actions" as Deadlines
+rectangle "Privacy\nConsent | Audit | Data Rights" as Privacy
+rectangle "Document Detail\nPreview | OCR | Evidence" as Detail
+
+SignIn -down-> MFA : credentials accepted
+MFA -down-> Dashboard : identity verified
+Dashboard -down-> Nav
+
+Nav -down-> Vault : Documents
+Nav -down-> AskAI : Ask
+Nav -down-> Deadlines : Deadlines
+Nav -down-> Privacy : Profile
+
+Vault -down-> Detail : select document
+
+' Keep the four primary destinations on one row.
+Vault -[hidden]right-> AskAI
+AskAI -[hidden]right-> Deadlines
+Deadlines -[hidden]right-> Privacy
+
+note bottom of Detail
+  A document can launch a grounded question
+  or save a confirmed deadline.
+end note
+@enduml

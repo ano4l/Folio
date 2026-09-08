@@ -1,0 +1,155 @@
+@startuml
+title Folio Entity-Relationship Diagram
+
+skinparam dpi 150
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontSize 20
+skinparam titleFontColor #0B2D63
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 40
+skinparam ArrowColor #0B2D63
+skinparam packageBorderColor #0B2D63
+skinparam packageBackgroundColor #FAFCFF
+skinparam class {
+  BackgroundColor #F8FAFD
+  BorderColor #1B5CAA
+  HeaderBackgroundColor #E7EEF8
+  FontColor #111111
+}
+
+hide circle
+hide methods
+left to right direction
+
+package "Identity and Governance" {
+  entity users {
+    * id : UUID <<PK>>
+    --
+    * auth_subject : varchar <<UQ>>
+    email : varchar
+    password_hash : varchar
+    mfa_enabled : boolean
+    role : varchar
+    created_at : timestamp
+  }
+
+  entity consents {
+    * id : UUID <<PK>>
+    --
+    * student_id : UUID <<FK>>
+    * recipient_id : UUID <<FK>>
+    scope : jsonb
+    purpose : text
+    expires_at : timestamp
+    revoked_at : timestamp
+  }
+
+  entity audit_events {
+    * id : UUID <<PK>>
+    --
+    * actor_id : UUID <<FK>>
+    action : varchar
+    target_type : varchar
+    target_id : UUID
+    created_at : timestamp
+  }
+
+  users ||--o{ consents
+  users ||--o{ audit_events
+  consents -[hidden]down-> audit_events
+}
+
+package "Document Domain" {
+  entity documents {
+    * id : UUID <<PK>>
+    --
+    * owner_id : UUID <<FK>>
+    title : varchar
+    document_type : varchar
+    processing_status : varchar
+    source_key : varchar
+    retention_until : timestamp
+  }
+
+  entity document_versions {
+    * id : UUID <<PK>>
+    --
+    * document_id : UUID <<FK>>
+    parser_version : varchar
+    summary : text
+    confidence : decimal
+    extracted_at : timestamp
+  }
+
+  entity extracted_entities {
+    * id : UUID <<PK>>
+    --
+    * version_id : UUID <<FK>>
+    label : varchar
+    value : text
+    confidence : decimal
+    source_page : int
+    bounding_box : jsonb
+  }
+
+  entity deadlines {
+    * id : UUID <<PK>>
+    --
+    * document_id : UUID <<FK>>
+    action : text
+    due_at : timestamp
+    timezone : varchar
+    status : varchar
+    source_evidence : jsonb
+  }
+
+  documents ||--o{ document_versions
+  document_versions ||--o{ extracted_entities
+  documents ||--o{ deadlines
+
+  documents -[hidden]right-> document_versions
+  document_versions -[hidden]right-> extracted_entities
+  document_versions -[hidden]down-> deadlines
+}
+
+package "Grounded Question Answering" {
+  entity questions {
+    * id : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    question_hash : varchar
+    answer_status : varchar
+    feedback : varchar
+    created_at : timestamp
+  }
+
+  entity citations {
+    * id : UUID <<PK>>
+    --
+    * question_id : UUID <<FK>>
+    * document_id : UUID <<FK>>
+    source_page : int
+    passage_hash : varchar
+    confidence : decimal
+  }
+
+  questions ||--o{ citations
+}
+
+' Cross-domain relationships.
+users ||--o{ documents
+users ||--o{ questions
+documents ||--o{ citations
+
+' Layout anchors only; these do not represent data relationships.
+users -[hidden]right-> documents
+documents -[hidden]right-> questions
+
+legend bottom
+  ||  exactly one        o{  zero or many
+endlegend
+@enduml

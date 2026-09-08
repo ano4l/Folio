@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Folio uses Face ID to securely verify your identity before opening your encrypted document vault.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Folio uses the microphone to let you ask questions to the AI assistant by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Folio uses speech recognition to transcribe your spoken questions to the AI assistant.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+</dict>
+</plist>
