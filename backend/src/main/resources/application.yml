@@ -10,8 +10,10 @@ spring:
     password: ${DB_PASSWORD:folio}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    enabled: true
   servlet:
     multipart:
       max-file-size: 20MB
@@ -22,3 +24,20 @@ management:
     web:
       exposure:
         include: health,info
+
+folio:
+  frontend-origins: ${FRONTEND_ORIGINS:http://localhost:3000}
+  auth:
+    otp-minutes: ${AUTH_OTP_MINUTES:10}
+    session-hours: ${AUTH_SESSION_HOURS:12}
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    otp-pepper: ${AUTH_OTP_PEPPER:change-this-in-production}
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    from: ${EMAIL_FROM:Folio <onboarding@resend.dev>}
+  openrouter:
+    api-key: ${OPENROUTER_API_KEY:}
+    model: ${OPENROUTER_MODEL:google/gemma-4-31b-it:free}
+    site-url: ${OPENROUTER_SITE_URL:http://localhost:3000}
+    app-name: ${OPENROUTER_APP_NAME:Folio}
+    zero-data-retention: ${OPENROUTER_ZDR:true}

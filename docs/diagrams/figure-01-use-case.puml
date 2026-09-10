@@ -1,0 +1,90 @@
+@startuml Folio_UseCase
+' Figure 1. Folio use case diagram
+' Layout: actors in a column on the left, use cases in one vertical column
+' inside the system boundary, supporting actors on the right.
+' Render: plantuml figure-01-use-case.puml   or   https://www.plantuml.com/plantuml
+
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam nodesep 10
+skinparam ranksep 110
+skinparam actorStyle stick
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontSize 13
+}
+skinparam rectangle {
+  BackgroundColor #EFEFEF
+  BorderColor #000000
+  RoundCorner 0
+  FontSize 14
+}
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+}
+skinparam arrow {
+  Color #000000
+}
+
+' ---------- Primary actors ----------
+actor "Student" as Student
+actor "Authorised\nStaff" as Staff
+actor "Operator" as Operator
+
+' ---------- System boundary ----------
+rectangle "Folio Secure Document Workspace" {
+  usecase "Sign In with MFA"        as UC01
+  usecase "Upload Document"         as UC02
+  usecase "Verify Extracted Fact"   as UC03
+  usecase "Search Documents"        as UC04
+  usecase "Ask Grounded Question"   as UC05
+  usecase "Ask by Voice"            as UC06
+  usecase "Manage Deadline"         as UC07
+  usecase "Share Summary"           as UC08
+  usecase "Review Shared Summary"   as UC09
+  usecase "Monitor Processing Jobs" as UC10
+
+  ' keep the column order
+  UC01 -[hidden]- UC02
+  UC02 -[hidden]- UC03
+  UC03 -[hidden]- UC04
+  UC04 -[hidden]- UC05
+  UC05 -[hidden]- UC06
+  UC06 -[hidden]- UC07
+  UC07 -[hidden]- UC08
+  UC08 -[hidden]- UC09
+  UC09 -[hidden]- UC10
+}
+
+' ---------- Supporting actors ----------
+actor "MFA Service" as MFA
+actor "Document\nProcessing\nPipeline" as Pipeline
+
+' ---------- Student ----------
+Student --> UC01
+Student --> UC02
+Student --> UC03
+Student --> UC04
+Student --> UC05
+Student --> UC06
+Student --> UC07
+Student --> UC08
+
+' ---------- Staff / Operator ----------
+Staff    --> UC09
+Operator --> UC10
+
+' ---------- Supporting actor links ----------
+UC01 --> MFA
+UC02 --> Pipeline
+UC05 --> Pipeline
+
+' ---------- Actor ordering ----------
+Student  -[hidden]- Staff
+Staff    -[hidden]- Operator
+
+@enduml

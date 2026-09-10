@@ -18,7 +18,7 @@ This roadmap is ordered by risk: establish a useful interface first, then protec
 - Keep the Next.js app build reproducible from the repository root and deployment platform.
 - Split stable UI features from the monolithic prototype as network state is introduced.
 - Define typed API contracts, error codes, document states, and audit actions.
-- Keep Spring Boot, PostgreSQL, Docker Compose, and Railway deployment scaffolding current.
+- Keep the Vercel/Supabase pilot reproducible while retaining Spring Boot and AWS scaffolding for the later migration.
 
 ### Exit criteria
 
@@ -33,8 +33,8 @@ This roadmap is ordered by risk: establish a useful interface first, then protec
 
 ### Identity and access
 
-- Implement Eduvos OIDC authorization-code flow and provider-managed MFA.
-- Provision local user records from stable OIDC subjects.
+- Harden Folio-managed registration, Resend email verification, and password plus email MFA.
+- Provision local user records with immutable UUID identity keys.
 - Add session expiry, logout, role boundaries, and generic 401/403/not-found states.
 - Add automated cross-user and IDOR tests before enabling documents.
 
@@ -52,7 +52,7 @@ This roadmap is ordered by risk: establish a useful interface first, then protec
 
 ### Exit criteria
 
-- OIDC and MFA work in a controlled environment.
+- Registration, account verification, and login MFA work in a controlled environment.
 - A supported test document can be uploaded, processed, inspected, and deleted.
 - Ownership and signed URL tests block unauthorised access.
 - API, worker, database, storage, and frontend health checks are visible.
@@ -137,10 +137,9 @@ This roadmap is ordered by risk: establish a useful interface first, then protec
 
 ## Cross-phase dependencies
 
-- OIDC and ownership precede real document storage.
+- Verified identity and ownership precede real document storage.
 - Signed URLs and malware scanning precede source previews.
 - Provenance precedes trustworthy summaries and Q&A.
 - Authorisation filters precede vector retrieval and staff access.
 - Retention and audit design precede production pilot data.
 - Evaluation data precedes claims about extraction or answer quality.
-

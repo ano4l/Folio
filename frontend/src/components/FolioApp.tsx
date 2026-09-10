@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   AlertTriangle,
   Bell,
@@ -51,7 +52,7 @@ type DocEntity = {
 };
 
 type Document = {
-  id: number;
+  id: number | string;
   title: string;
   type: DocType;
   date: string;
@@ -75,6 +76,9 @@ type AuditEntry = {
   detail: string;
   category: LogCategory;
 };
+
+type AuthUser = { id: string; email: string; displayName: string };
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 
 const typeStyles: Record<DocType, { label: string; color: string; tint: string; border: string }> = {
   "Funding Award Letter": { label: "Funding", color: "#c97a2b", tint: "#fbede0", border: "#f3dbca" },
@@ -172,9 +176,15 @@ const navItems = [
 
 export default function FolioApp() {
   // Authentication & MFA flow states
-  const [authStep, setAuthStep] = useState<"credentials" | "mfa" | "authenticated">("credentials");
-  const [emailInput, setEmailInput] = useState("alex.m@folio-student.app");
-  const [passwordInput, setPasswordInput] = useState("••••••••••••");
+  const [authStep, setAuthStep] = useState<"checking" | "credentials" | "mfa" | "authenticated">("checking");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [challengeId, setChallengeId] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [mfaDigits, setMfaDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [mfaError, setMfaError] = useState("");
   const [mfaTimer, setMfaTimer] = useState(59);
@@ -251,6 +261,7 @@ export default function FolioApp() {
 
   // Real file upload
   const [uploadFileName, setUploadFileName] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // Grounded Chat Q&A states
   const [chatInput, setInput] = useState("");
@@ -283,6 +294,25 @@ export default function FolioApp() {
 
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
+  useEffect(() => {
+    fetch(`${API_URL}/v1/auth/me`, { credentials: "include" })
+      .then(async (response) => response.ok ? response.json() : Promise.reject())
+      .then((user: AuthUser) => { setAuthUser(user); setAuthStep("authenticated"); })
+      .catch(() => setAuthStep("credentials"));
+  }, []);
+
+  useEffect(() => {
+    if (authStep !== "authenticated") return;
+    fetch(`${API_URL}/v1/documents`, { credentials: "include" })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Unable to load your documents");
+        return data.documents as Document[];
+      })
+      .then(setDocuments)
+      .catch(error => { setToast(error instanceof Error ? error.message : "Unable to load your documents"); setToastType("error"); });
+  }, [authStep]);
+
   // MFA code resend countdown
   useEffect(() => {
     if (authStep === "mfa" && mfaTimer > 0) {
@@ -295,12 +325,23 @@ export default function FolioApp() {
     return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   };
 
-  const handleCredentialsSubmit = (e: React.FormEvent) => {
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthStep("mfa");
-    setMfaTimer(59);
-    setMfaError("");
-    setToast("MFA Passcode issued to registered student device.");
+    setAuthLoading(true); setAuthError("");
+    try {
+      const payload = authMode === "register"
+        ? { displayName: displayNameInput, email: emailInput, password: passwordInput }
+        : { email: emailInput, password: passwordInput };
+      const response = await fetch(`${API_URL}/v1/auth/${authMode}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Unable to continue");
+      setChallengeId(data.challengeId); setAuthStep("mfa"); setMfaTimer(data.resendAfterSeconds || 60);
+      setMfaError(""); setMfaDigits(["", "", "", "", "", ""]);
+      setToast(`Verification code sent to ${data.destination}.`);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Unable to continue"); }
+    finally { setAuthLoading(false); }
   };
 
   const handleMfaChange = (index: number, val: string) => {
@@ -331,131 +372,101 @@ export default function FolioApp() {
     }
   };
 
-  const handleVerifyMfa = (digits?: string[]) => {
+  const handleVerifyMfa = async (digits?: string[]) => {
     const code = (digits ?? mfaDigits).join("");
     if (code.length < 6) {
       setMfaError("Please fill out the full 6-digit verification security code.");
       return;
     }
-    // Simulation: Correct code is 123456 or any code for testing
-    if (code === "123456" || code === "000000" || true) {
-      setAuthStep("authenticated");
-      setToast("Authorized. Welcome to Folio Student Portal.");
+    setAuthLoading(true); setMfaError("");
+    try {
+      const response = await fetch(`${API_URL}/v1/auth/verify`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
+        body: JSON.stringify({ challengeId, code })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Unable to verify this code");
+      setAuthUser(data); setAuthStep("authenticated"); setPasswordInput("");
+      setToast(authMode === "register" ? "Account verified. Welcome to Folio." : "Identity verified. Welcome back.");
       // Log Secure Session Initiation
       const newLog: AuditEntry = {
         id: Date.now(),
         time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
         actor: "Student",
-        action: "OIDC Session Started",
-        detail: "MFA Token Authorized via Secure SSO (IP: 192.168.1.182, Location: Folio Campus)",
+        action: "Secure Session Started",
+        detail: "Email MFA verified and an encrypted Folio session was created.",
         category: "Security"
       };
       setAuditLogs((prev) => [newLog, ...prev]);
-    } else {
-      setMfaError("Invalid verification code. Please request a new token or retry.");
-    }
+    } catch (error) { setMfaError(error instanceof Error ? error.message : "Unable to verify this code"); }
+    finally { setAuthLoading(false); }
   };
 
-  const handleResendMfa = () => {
+  const handleResendMfa = async () => {
     setIsResending(true);
-    setTimeout(() => {
-      setMfaTimer(59);
+    try {
+      const response = await fetch(`${API_URL}/v1/auth/resend`, { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ challengeId }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Unable to resend the code");
+      setChallengeId(data.challengeId); setMfaTimer(data.resendAfterSeconds || 60);
       setMfaDigits(["", "", "", "", "", ""]);
-      setMfaError("");
-      setIsResending(false);
-      setToast("A fresh 6-digit secure key has been dispatched via OAuth SMS.");
-    }, 1200);
+      setMfaError(""); setToast(`A fresh code was sent to ${data.destination}.`);
+    } catch (error) { setMfaError(error instanceof Error ? error.message : "Unable to resend the code"); }
+    finally { setIsResending(false); }
   };
 
-  // Upload Simulation State Machine
-  const handleUploadSubmit = () => {
-    if (!uploadTitle.trim()) {
-      setToast("Please state a clear document title for classification.");
-      return;
+  const handleLogout = async () => {
+    await fetch(`${API_URL}/v1/auth/logout`, { method: "POST", credentials: "include", headers: { "X-Requested-With": "FolioWeb" } }).catch(() => undefined);
+    setAuthUser(null); setAuthStep("credentials"); setPasswordInput(""); setMobileProfileOpen(false);
+  };
+
+  // Direct-to-Supabase private storage upload followed by server-side extraction and summarisation.
+  const handleUploadSubmit = async () => {
+    if (!uploadTitle.trim() || !uploadFile) {
+      setToast(!uploadFile ? "Choose a document to upload." : "Please state a clear document title.");
+      setToastType("error"); return;
     }
-
-    setUploadStep("uploading");
-    setUploadProgress(15);
-
-    // Tick progress bar
-    const progressTimer = setInterval(() => {
-      setUploadProgress((p) => {
-        if (p >= 95) {
-          clearInterval(progressTimer);
-          return 95;
-        }
-        return p + Math.floor(Math.random() * 20) + 5;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!supabaseUrl || !publishableKey) { setToast("Supabase is not configured yet."); setToastType("error"); return; }
+    setUploadStep("uploading"); setUploadProgress(10);
+    try {
+      const prepare = await fetch(`${API_URL}/v1/documents/upload-url`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
+        body: JSON.stringify({ title: uploadTitle, category: uploadType, fileName: uploadFile.name, mimeType: uploadFile.type, byteSize: uploadFile.size }),
       });
-    }, 200);
-
-    // 1. Finished network upload (to simulated S3 bucket)
-    setTimeout(() => {
-      clearInterval(progressTimer);
-      setUploadProgress(100);
-      setUploadStep("ocr");
-      setToast("File received. Extracting text via AWS Textract OCR...");
-
-      // 2. Optical Character Recognition
-      setTimeout(() => {
-        setUploadStep("nlp");
-        setToast("Running LayoutLM NLP classification & entity extraction...");
-
-        // 3. AI Entity Mapping & Summary
-        setTimeout(() => {
-          const newDocId = Date.now();
-          const parsedDoc: Document = {
-            id: newDocId,
-            title: uploadTitle,
-            type: uploadType,
-            date: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }),
-            pages: Math.floor(Math.random() * 3) + 1,
-            status: "Ready",
-            confidence: Math.floor(Math.random() * 10) + 88,
-            summary: `This is an officially processed ${uploadType}. Our system classified this document and ran extraction of crucial timelines, figures, and conditional clauses. The compliance confidence rate is optimal.`,
-            entities: [
-              { label: "Detected type", value: uploadType, bbox: { top: 15, left: 15, width: 35, height: 6 } },
-              { label: "Verification Status", value: "Verified and Cleared", bbox: { top: 40, left: 15, width: 30, height: 6 } },
-              { label: "System Confidence", value: "Grounded & Authenticated", bbox: { top: 65, left: 15, width: 45, height: 6 } },
-            ],
-            rawText: `STUDENT FINANCE DOCUMENT. PORTAL RETRIEVAL CLASSIFICATION. Date: ${new Date().toLocaleDateString("en-ZA")}. Classified as: ${uploadType}. All entities validated successfully under POPIA regulations.`
-          };
-
-          setDocuments((prev) => [parsedDoc, ...prev]);
-          setUploadStep("idle");
-          setUploadOpen(false);
-          setUploadTitle("");
-          setUploadFileName("");
-          if (fileInputRef.current) fileInputRef.current.value = "";
-          setToast("Document processed successfully! Extractions linked.");
-
-          // Log Document Upload
-          const newLog: AuditEntry = {
-            id: Date.now(),
-            time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
-            actor: "Student",
-            action: "Upload Completed",
-            detail: `Uploaded '${uploadTitle}' classified as ${uploadType}. Metadata indexed into PostgreSQL.`,
-            category: "Document"
-          };
-          setAuditLogs((prev) => [newLog, ...prev]);
-
-          // Trigger a dynamic new deadline if it was an appeal or fee statement
-          if (uploadType === "Appeal Correspondence") {
-            const freshDeadline = {
-              id: Date.now(),
-              action: "Follow up on Appeal Correspondence",
-              doc: uploadTitle,
-              due: "Within 30 Days",
-              days: 30,
-              severity: "medium" as const,
-              completed: false
-            };
-            setDeadlines((prev) => [freshDeadline, ...prev]);
-          }
-
-        }, 1500);
-      }, 1500);
-    }, 1500);
+      const upload = await prepare.json().catch(() => ({}));
+      if (!prepare.ok) throw new Error(upload.message || "Unable to prepare secure upload");
+      setUploadProgress(35);
+      const client = createClient(supabaseUrl, publishableKey, { auth: { persistSession: false } });
+      const { error: storageError } = await client.storage.from("folio-documents")
+        .uploadToSignedUrl(upload.path, upload.token, uploadFile, { contentType: uploadFile.type, upsert: false });
+      if (storageError) throw new Error(storageError.message);
+      setUploadProgress(85);
+      const complete = await fetch(`${API_URL}/v1/documents/complete`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
+        body: JSON.stringify({ documentId: upload.documentId }),
+      });
+      const completed = await complete.json().catch(() => ({}));
+      if (!complete.ok) throw new Error(completed.message || "Unable to confirm secure upload");
+      setUploadStep("ocr"); setUploadProgress(92);
+      const processedResponse = await fetch(`${API_URL}/v1/documents/process`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
+        body: JSON.stringify({ documentId: upload.documentId }),
+      });
+      const processed = await processedResponse.json().catch(() => ({}));
+      if (!processedResponse.ok) throw new Error(processed.message || "The document was stored but could not be processed");
+      setUploadStep(processed.status === "READY" ? "done" : "nlp"); setUploadProgress(100);
+      const refresh = await fetch(`${API_URL}/v1/documents`, { credentials: "include" });
+      const refreshed = await refresh.json();
+      if (refresh.ok) setDocuments(refreshed.documents);
+      setUploadStep("idle"); setUploadOpen(false); setUploadTitle(""); setUploadFileName(""); setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setToast(processed.status === "READY" ? "Document uploaded, extracted, and summarised." : "Document uploaded securely and needs manual review."); setToastType("success");
+    } catch (error) {
+      setUploadStep("idle"); setUploadProgress(0); setToast(error instanceof Error ? error.message : "Upload failed"); setToastType("error");
+    }
   };
 
   // Complete a deadline timeline item with state simulation
@@ -485,7 +496,7 @@ export default function FolioApp() {
   };
 
   // AI QA Grounded responses log
-  const handleSendChat = (question = chatInput) => {
+  const handleSendChat = async (question = chatInput) => {
     if (!question.trim()) return;
 
     // Credit gate: check free monthly allowance first, then paid credits
@@ -507,55 +518,18 @@ export default function FolioApp() {
       setAiCredits((prev) => prev - 1);
     }
 
-    setTimeout(() => {
-      const q = question.toLowerCase();
-      let responseText = "";
-      let matchedDoc = "Government Funding Award Letter — 2026";
-      let matchedPage = 1;
-      let citations: { doc: string; detail: string }[] = [];
-
-      if (q.includes("draft") || q.includes("summary") || q.includes("interview") || q.includes("apply") || q.includes("job")) {
-        responseText = "Based on your uploaded documents, here is a summary of what you need for a graduate application: (1) Government Funding Award Letter confirms full funding of R98,450 for 2026 — demonstrates financial stability. (2) Merit Bursary Agreement shows academic merit recognition with a R32,000 scholarship, requiring a 75%+ average. (3) Your Semester 1 Fee Statement shows an outstanding balance of R4,120 due 28 Feb 2026 — clear this before interviews. These documents collectively show academic standing and financial awareness expected of a funded graduate student.";
-        matchedDoc = "Government Funding Award Letter — 2026";
-        matchedPage = 1;
-        citations = [
-          { doc: "Government Funding Award Letter — 2026", detail: "Page 1, Award Conditions and Academic Requirements" },
-          { doc: "Merit Bursary Agreement — 2026", detail: "Page 2, Scholarship merit criteria and GPA requirements" },
-          { doc: "Semester 1 Fee Statement", detail: "Page 1, Outstanding balance and due dates" }
-        ];
-      } else if (q.includes("bursary") || q.includes("renew") || q.includes("merit")) {
-        responseText = "According to Section 4 of your Merit Bursary Agreement, the bursary is valued at R32,000 per year and is renewable. You are required to submit your official Semester 1 transcript and a signed renewal declaration before 02 August 2026.";
-        matchedDoc = "Merit Bursary Agreement — 2026";
-        matchedPage = 2;
-        citations = [{ doc: "Merit Bursary Agreement — 2026", detail: "Page 2, Section 4: Academic Transcript & Declaration Renewal Parameters" }];
-      } else if (q.includes("fee") || q.includes("owe") || q.includes("statement") || q.includes("pay") || q.includes("balance")) {
-        responseText = "Your Semester 1 Fee Statement records total charges of R65,000 (R45k tuition, R12k residence, R8k meals) with a financial aid credit of R60,880 applied. You have an outstanding net balance of R4,120 due by 28 February 2026.";
-        matchedDoc = "Semester 1 Fee Statement";
-        matchedPage = 1;
-        citations = [{ doc: "Semester 1 Fee Statement", detail: "Page 1, Summary Ledger: Tuition and Meals Net Balance calculations" }];
-      } else if (q.includes("funding") || q.includes("award") || q.includes("average") || q.includes("condition") || q.includes("allowance")) {
-        responseText = "Based on your Government Funding Award Letter (2026), your full funding of R98,450 is approved. Key conditions are: maintaining a 60% academic average grade and full-time registration status. You must submit your proof of registration before 12 February 2026.";
-        matchedDoc = "Government Funding Award Letter — 2026";
-        matchedPage = 1;
-        citations = [{ doc: "Government Funding Award Letter — 2026", detail: "Page 1, Paragraph 3: Award Allocations and Registration proof timelines" }];
-      } else if (q.includes("proof") || q.includes("registration") || q.includes("register")) {
-        responseText = "Your Government Funding Award Letter requires proof of registration within 30 days of term start. The linked deadline is 12 February 2026. Staying registered full-time is also a condition of the award.";
-        matchedDoc = "Government Funding Award Letter — 2026";
-        citations = [{ doc: "Government Funding Award Letter — 2026", detail: "Page 1, Proof of registration requirement" }];
-      } else if (q.includes("bank") || q.includes("disbursement") || q.includes("account") || q.includes("confirmation")) {
-        responseText = "Your Standard Bank Account Confirmation verifies an active transactional account ending in 192. It is validated for financial-aid disbursement deposits and records no restrictions.";
-        matchedDoc = "Standard Bank Account Confirmation";
-        citations = [{ doc: "Standard Bank Account Confirmation", detail: "Page 1, Account verification for disbursement" }];
-      } else {
-        responseText = "Based on the documents in your secure vault, you currently have 3 upcoming tasks. The most urgent is submitting proof of registration by 12 February 2026 (3 days left). Your bursary renewal declaration is due 02 August 2026.";
-        matchedDoc = "Government Funding Award Letter — 2026";
-        matchedPage = 1;
-        citations = [
-          { doc: "Government Funding Award Letter — 2026", detail: "Page 1, Proof of Registration Submission parameters" },
-          { doc: "Merit Bursary Agreement — 2026", detail: "Page 2, Renewal Window Specifications" }
-        ];
-      }
-
+    try {
+      const history = chatMessages.slice(-8).map(({ role, text }) => ({ role, text }));
+      const response = await fetch(`${API_URL}/v1/ai/ask`, { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ question, history }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "The assistant could not answer right now");
+      const responseText = data.answer as string;
+      const citations = (data.citations || []).map((citation: { title: string; page: number }) => ({
+        doc: citation.title, detail: `Page ${citation.page}`
+      }));
+      const matchedDoc = citations[0]?.doc;
+      const matchedPage = data.citations?.[0]?.page;
       setMessages((prev) => [
         ...prev,
         { role: "assistant", text: responseText, sourceDoc: matchedDoc, sourcePage: matchedPage, sources: citations }
@@ -570,12 +544,18 @@ export default function FolioApp() {
         time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
         actor: "Student",
         action: "AI Grounded Query",
-        detail: `Prompted: "${question.substring(0, 45)}...". Responded with verified citation: ${matchedDoc}`,
+        detail: `Asked a document-grounded question. ${matchedDoc ? `Evidence: ${matchedDoc}` : "The assistant abstained outside available evidence."}`,
         category: "AI Queries"
       };
       setAuditLogs((prev) => [newLog, ...prev]);
-
-    }, 1200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The assistant could not answer right now";
+      setMessages((prev) => [...prev, { role: "assistant", text: message }]);
+      setToast(message); setToastType("error");
+      // Restore the locally displayed credit when the provider request fails.
+      if (hasMonthlyFree) setMonthlyFreeUsed((prev) => Math.max(0, prev - 1));
+      else setAiCredits((prev) => prev + 1);
+    } finally { setAiTyping(false); }
   };
 
   // Download document OCR text as a .txt file
@@ -805,11 +785,20 @@ export default function FolioApp() {
   };
 
   // Soft-delete a document (move to recycle bin)
-  const handleDeleteDocument = (doc: Document) => {
+  const handleDeleteDocument = async (doc: Document) => {
+    const response = await fetch(`${API_URL}/v1/documents/${doc.id}`, {
+      method: "DELETE", credentials: "include", headers: { "X-Requested-With": "FolioWeb" },
+    }).catch(() => null);
+    if (!response?.ok) {
+      setToast("That document could not be moved to the recycle bin.");
+      setToastType("error");
+      return;
+    }
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
     setDeletedDocs((prev) => [doc, ...prev]);
     setSelectedDoc(null);
     setToast(`'${doc.title}' moved to recycle bin. You can restore it anytime.`);
+    setToastType("success");
     const newLog: AuditEntry = {
       id: Date.now(),
       time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
@@ -822,10 +811,20 @@ export default function FolioApp() {
   };
 
   // Restore a document from recycle bin
-  const handleRestoreDocument = (doc: Document) => {
+  const handleRestoreDocument = async (doc: Document) => {
+    const response = await fetch(`${API_URL}/v1/documents/restore`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
+      body: JSON.stringify({ documentId: doc.id }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setToast("That document could not be restored.");
+      setToastType("error");
+      return;
+    }
     setDeletedDocs((prev) => prev.filter((d) => d.id !== doc.id));
     setDocuments((prev) => [doc, ...prev]);
     setToast(`'${doc.title}' restored to your vault successfully.`);
+    setToastType("success");
     const newLog: AuditEntry = {
       id: Date.now(),
       time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
@@ -837,28 +836,10 @@ export default function FolioApp() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Biometric sign-in simulation
+  // Passkeys are a later provider-backed feature; never bypass server authentication.
   const handleBiometricLogin = () => {
-    setBiometricScanning(true);
-    setBiometricDone(false);
-    setTimeout(() => {
-      setBiometricDone(true);
-      setTimeout(() => {
-        setBiometricScanning(false);
-        setBiometricDone(false);
-        setAuthStep("authenticated");
-        setToast("Biometric identity verified. Welcome to Folio.");
-        const newLog: AuditEntry = {
-          id: Date.now(),
-          time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
-          actor: "Student",
-          action: "Biometric Sign-In",
-          detail: "Facial recognition verified via FIDO2 device passkey. Session authorized.",
-          category: "Security"
-        };
-        setAuditLogs((prev) => [newLog, ...prev]);
-      }, 800);
-    }, 2200);
+    setToast("Passkey sign-in will be enabled after the server-backed WebAuthn flow is added.");
+    setToastType("info");
   };
 
   // Calendar helpers
@@ -900,7 +881,11 @@ export default function FolioApp() {
   }, [auditLogs, logFilter, logSearch]);
 
 
-  // Login Screen render
+  if (authStep === "checking") {
+    return <main className="login-page"><div className="login-card"><div className="brand"><span><FolderOpen size={19} /></span><div><b>Folio</b><small>Checking your secure session...</small></div></div></div></main>;
+  }
+
+  // Login and registration screen render
   if (authStep === "credentials") {
     return (
       <main className="login-page">
@@ -912,10 +897,14 @@ export default function FolioApp() {
               <small>Student financial documents understood.</small>
             </div>
           </div>
-          <h1>Your funding paperwork, finally clear.</h1>
+          <h1>{authMode === "register" ? "Create your secure Folio." : "Your funding paperwork, finally clear."}</h1>
           <p>Securely store, analyze and act on every document that keeps your studies moving.</p>
 
           <form onSubmit={handleCredentialsSubmit} className="login-form">
+            {authMode === "register" && <label>
+              Full Name
+              <input value={displayNameInput} onChange={(e) => setDisplayNameInput(e.target.value)} placeholder="e.g. Londiwe Mahlangu" required maxLength={120} />
+            </label>}
             <label>
               Student Email Address
               <input
@@ -936,15 +925,21 @@ export default function FolioApp() {
               />
             </label>
 
+            {authError && <div className="mfa-error-message"><AlertCircle size={14} /><span>{authError}</span></div>}
+
             <div className="mfa-notice">
               <ShieldCheck size={16} />
-              <span>Multi-factor authentication via Eduvos Single Sign-On (OAuth 2.0 / OIDC) is enabled.</span>
+              <span>{authMode === "register" ? "We will verify your account by email before creating your session." : "A one-time email code is required after your password."}</span>
             </div>
 
-            <button type="submit" className="primary full">
-              Sign in securely <ArrowRight size={15} style={{ marginLeft: 6 }} />
+            <button type="submit" className="primary full" disabled={authLoading}>
+              {authLoading ? "Sending secure code..." : authMode === "register" ? "Register securely" : "Sign in securely"} <ArrowRight size={15} style={{ marginLeft: 6 }} />
             </button>
           </form>
+
+          <button className="link" type="button" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>
+            {authMode === "login" ? "New to Folio? Create an account" : "Already registered? Sign in"}
+          </button>
 
           <div className="biometric-divider">
             <span>or</span>
@@ -959,13 +954,13 @@ export default function FolioApp() {
             ) : (
               <>
                 <Fingerprint size={20} style={{ color: "var(--teal)" }} />
-                <span>Sign in with Biometrics (Face ID / Passkey)</span>
+                <span>Passkey sign-in (coming after account setup)</span>
               </>
             )}
           </button>
 
           <small className="login-foot">
-            Protected under POPIA Act (Republic of South Africa). Your documents are encrypted at rest with military-grade AES-256 and in transit via TLS 1.3.
+            Designed for POPIA-aligned handling. Production encryption and TLS are enforced by the AWS deployment configuration.
           </small>
         </div>
       </main>
@@ -980,7 +975,7 @@ export default function FolioApp() {
           <div className="mfa-header">
             <span><Fingerprint size={28} style={{ color: "var(--teal)" }} /></span>
             <h2>Security MFA Code</h2>
-            <p>We sent a 6-digit secure login token to your student device. Please enter it to authorize your session.</p>
+            <p>We sent a 6-digit code to your email. Enter it to {authMode === "register" ? "verify your account and sign in" : "authorize your session"}.</p>
           </div>
 
           <div className="mfa-digits-container">
@@ -1006,15 +1001,15 @@ export default function FolioApp() {
             </div>
           )}
 
-          <button onClick={() => handleVerifyMfa()} className="primary full" style={{ marginTop: 10 }}>
-            Authorize Session
+          <button onClick={() => handleVerifyMfa()} disabled={authLoading} className="primary full" style={{ marginTop: 10 }}>
+            {authLoading ? "Verifying..." : authMode === "register" ? "Verify account & sign in" : "Authorize Session"}
           </button>
 
           <div className="mfa-timer-row">
             {mfaTimer > 0 ? (
-              <span className="mfa-countdown-text">Verification token expires in <b>{mfaTimer}s</b></span>
+              <span className="mfa-countdown-text">You can request a new code in <b>{mfaTimer}s</b></span>
             ) : (
-              <span className="mfa-countdown-expired">Token has expired.</span>
+              <span className="mfa-countdown-expired">Didn&apos;t get it? You can request a new code.</span>
             )}
 
             <button
@@ -1027,9 +1022,7 @@ export default function FolioApp() {
             </button>
           </div>
 
-          <div className="demo-bypass-hint">
-            <strong>Prototype Guide:</strong> For review purposes, enter any code or click <b>Authorize Session</b> to continue.
-          </div>
+          <button className="link" onClick={() => { setAuthStep("credentials"); setMfaError(""); }}>Back to {authMode === "register" ? "registration" : "sign in"}</button>
         </div>
       </main>
     );
@@ -1067,13 +1060,13 @@ export default function FolioApp() {
 
         <div className="sidebar-foot">
           <div className="profile">
-            <span>LM</span>
+            <span>{initials(authUser?.displayName || "Student")}</span>
             <div>
-              <b>Londiwe Mahlangu</b>
-              <small>BSc Software Engineering</small>
+              <b>{authUser?.displayName || "Student"}</b>
+              <small>Verified student account</small>
             </div>
           </div>
-          <button onClick={() => setAuthStep("credentials")} className="signout-button">
+          <button onClick={handleLogout} className="signout-button">
             <LogOut size={16} />
             <span>Sign out</span>
           </button>
@@ -1202,9 +1195,9 @@ export default function FolioApp() {
 
             {/* Profile Dropdown Trigger for Mobile & Desktop */}
             <button className="profile-header-chip" aria-label="Open account menu" aria-expanded={mobileProfileOpen} onClick={() => setMobileProfileOpen(!mobileProfileOpen)}>
-              <span>AM</span>
+              <span>{initials(authUser?.displayName || "Student")}</span>
               <div className="desktop-only">
-                <b>Alex M.</b>
+                <b>{authUser?.displayName || "Student"}</b>
                 <small>Student Account</small>
               </div>
             </button>
@@ -1213,16 +1206,13 @@ export default function FolioApp() {
             {mobileProfileOpen && (
               <div className="quick-profile-dropdown animate-slide-up">
                 <div className="dropdown-profile-header">
-                  <b>Alex Mokoena</b>
-                  <p>alex.m@folio-student.app</p>
+                  <b>{authUser?.displayName || "Student"}</b>
+                  <p>{authUser?.email}</p>
                   <small>Student Account</small>
                 </div>
                 <button
                   className="dropdown-item signout"
-                  onClick={() => {
-                    setMobileProfileOpen(false);
-                    setAuthStep("credentials");
-                  }}
+                  onClick={handleLogout}
                 >
                   <LogOut size={14} /> Sign out
                 </button>
@@ -1239,7 +1229,7 @@ export default function FolioApp() {
               <div className="screen-heading">
                 <div>
                   <label>Overview</label>
-                  <h1>Welcome back, Alex</h1>
+                  <h1>Welcome back, {(authUser?.displayName || "Student").split(" ")[0]}</h1>
                   <p>Secure document extraction engine & retrieval assistant is active.</p>
                 </div>
               </div>
@@ -1963,11 +1953,11 @@ export default function FolioApp() {
 
       {/* MODAL: SECURE PAPERWORK UPLOAD FLOW */}
       {uploadOpen && (
-        <div className="modal-backdrop animate-fade-in" onClick={() => setUploadOpen(false)}>
+        <div className="modal-backdrop animate-fade-in" onClick={() => { setUploadOpen(false); setUploadStep("idle"); setUploadFileName(""); setUploadFile(null); }}>
           <div className="modal animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="upload-dialog-title" onClick={(e) => e.stopPropagation()}>
             <div className="modal-heading">
               <b id="upload-dialog-title">Secure Document Dispatch</b>
-              <button className="close-modal-btn" aria-label="Close upload dialog" onClick={() => { setUploadOpen(false); setUploadStep("idle"); setUploadFileName(""); setUploadTitle(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
+              <button className="close-modal-btn" aria-label="Close upload dialog" onClick={() => { setUploadOpen(false); setUploadStep("idle"); setUploadFileName(""); setUploadFile(null); setUploadTitle(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
                 <X size={17} />
               </button>
             </div>
@@ -1982,6 +1972,7 @@ export default function FolioApp() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      setUploadFile(file);
                       setUploadFileName(file.name);
                       if (!uploadTitle.trim()) {
                         setUploadTitle(file.name.replace(/\.[^.]+$/, ""));
@@ -2001,6 +1992,7 @@ export default function FolioApp() {
                     e.preventDefault();
                     const file = e.dataTransfer.files?.[0];
                     if (file) {
+                      setUploadFile(file);
                       setUploadFileName(file.name);
                       if (!uploadTitle.trim()) setUploadTitle(file.name.replace(/\.[^.]+$/, ""));
                     }
