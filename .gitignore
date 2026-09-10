@@ -6,3 +6,4 @@ out
 .env*
 !.env.example
 backend/target
+.vercel

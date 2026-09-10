@@ -105,7 +105,6 @@ const navItems = [
   ["dashboard", "Dashboard", LayoutDashboard],
   ["documents", "Documents", FileText],
   ["ask", "Ask AI", MessageSquareText],
-  ["deadlines", "Deadlines", Clock3],
   ["security", "Security", ShieldCheck],
 ] as const;
 
@@ -1005,10 +1004,10 @@ export default function FolioApp() {
           <div className="search desktop-only nl-search-wrapper">
             <Search size={15} />
             <input
-              aria-label="Search your documents and deadlines"
+              aria-label="Search your documents"
               aria-autocomplete="list"
               aria-expanded={searchOpen && searchQuery.trim().length > 0}
-              placeholder="Search documents, deadlines, or ask a question"
+              placeholder="Search documents or ask a question"
               value={searchQuery}
               onChange={(e) => { handleNLSearch(e.target.value); setSearchOpen(true); }}
               onFocus={() => searchQuery && setSearchOpen(true)}
@@ -1057,7 +1056,7 @@ export default function FolioApp() {
             )}
             {searchOpen && searchQuery.length > 1 && searchResults.length === 0 && (
               <div className="nl-search-results animate-slide-up">
-                <div className="nl-no-results"><small>No matching documents or deadlines found.</small></div>
+                <div className="nl-no-results"><small>No matching documents found.</small></div>
               </div>
             )}
           </div>
@@ -1067,7 +1066,7 @@ export default function FolioApp() {
               <div className="mobile-search-sheet-head"><b>Search your vault</b><button type="button" aria-label="Close search" onClick={() => { setMobileSearchOpen(false); setSearchOpen(false); }}><X size={18} /></button></div>
               <div className="search mobile-search-input nl-search-wrapper">
                 <Search size={16} />
-                <input autoFocus aria-label="Search your documents and deadlines" placeholder="Try “graduate job application”" value={searchQuery} onChange={(e) => { handleNLSearch(e.target.value); setSearchOpen(true); }} />
+                <input autoFocus aria-label="Search your documents" placeholder="Try “graduate job application”" value={searchQuery} onChange={(e) => { handleNLSearch(e.target.value); setSearchOpen(true); }} />
                 <button className={`voice-search-btn ${voiceSearchActive ? "voice-active" : ""}`} type="button" aria-label={voiceSearchActive ? "Stop voice search" : "Start voice search"} onClick={() => voiceSearchActive ? stopVoiceInput() : handleVoiceInput("search")}>{voiceSearchActive ? <MicOff size={14} /> : <Mic size={14} />}</button>
                 {voiceSearchActive && <button className="voice-stop-btn" type="button" onClick={stopVoiceInput}><MicOff size={12} /> Stop</button>}
               </div>
@@ -1083,7 +1082,7 @@ export default function FolioApp() {
               <span>POPIA aligned · AWS-ready</span>
             </div>
 
-            <div style={{ position: "relative" }}>
+            {deadlines.some(d => !d.completed) && <div style={{ position: "relative" }}>
               <button className="notification" aria-label="View pending deadlines" aria-expanded={notifOpen} onClick={() => { setNotifOpen(!notifOpen); setMobileProfileOpen(false); }}>
                 <Bell size={17} />
                 {deadlines.filter(d => !d.completed).length > 0 && <em />}
@@ -1106,7 +1105,7 @@ export default function FolioApp() {
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Profile Dropdown Trigger for Mobile & Desktop */}
             <button className="profile-header-chip" aria-label="Open account menu" aria-expanded={mobileProfileOpen} onClick={() => setMobileProfileOpen(!mobileProfileOpen)}>
@@ -1160,7 +1159,7 @@ export default function FolioApp() {
                   </div>
                 </div>
 
-                <div className="stat-card">
+                {deadlines.length > 0 && <div className="stat-card">
                   <div className="stat-icon" style={{ color: "#c97a2b", background: "#fbede0" }}>
                     <AlertTriangle size={18} />
                   </div>
@@ -1168,7 +1167,7 @@ export default function FolioApp() {
                     <strong>{deadlines.filter(d => !d.completed).length}</strong>
                     <span>Pending Obligations</span>
                   </div>
-                </div>
+                </div>}
 
                 <div className="stat-card">
                   <div className="stat-icon" style={{ color: "#33455e", background: "#e8ecf1" }}>
@@ -1191,22 +1190,15 @@ export default function FolioApp() {
                 </div>
               </div>
 
-              <div className="columns animate-slide-up" style={{ animationDelay: "0.1s" }}>
+              <div className={`columns animate-slide-up ${deadlines.length === 0 ? "single-column" : ""}`} style={{ animationDelay: "0.1s" }}>
                 {/* Timeline Obligations */}
-                <div className="panel">
+                {deadlines.length > 0 && <div className="panel">
                   <div className="panel-heading">
                     <b>Active Timelines & Tasks</b>
                     <button onClick={() => setScreen("deadlines")}>Open schedule</button>
                   </div>
 
                   <div className="timeline-dashboard-list">
-                    {deadlines.length === 0 && (
-                      <div className="empty-timeline-state">
-                        <Clock3 size={20} />
-                        <b>No deadlines yet</b>
-                        <small>Deadlines identified from your uploaded documents will appear here.</small>
-                      </div>
-                    )}
                     {deadlines.slice(0, 3).map((deadline) => (
                       <div className={`deadline-row ${deadline.completed ? "completed-row" : ""}`} key={deadline.id}>
                         <span className={`severity ${deadline.severity}`} />
@@ -1225,7 +1217,7 @@ export default function FolioApp() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* AI Grounded Prompt Shortcut */}
                 <div className="panel">

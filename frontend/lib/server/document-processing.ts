@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { supabaseAdmin } from "./supabase";
 
@@ -31,6 +30,9 @@ export async function processDocument(document: StoredDocument) {
 
 async function extractText(buffer: Buffer, mime: string) {
   if (mime === "application/pdf") {
+    // Load the PDF runtime only when processing begins. Importing it at route
+    // startup makes unrelated upload preparation depend on browser canvas APIs.
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try { const result = await parser.getText(); return { text: result.text.slice(0, MAX_TEXT), pages: result.total || 1 }; }
     finally { await parser.destroy(); }

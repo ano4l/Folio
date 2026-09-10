@@ -752,6 +752,10 @@ button {
   align-items: start;
 }
 
+.columns.single-column {
+  grid-template-columns: 1fr;
+}
+
 .panel {
   padding: 24px;
 }
