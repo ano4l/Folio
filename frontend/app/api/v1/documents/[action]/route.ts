@@ -50,14 +50,16 @@ async function uploadUrl(request: NextRequest, userId: string) {
   const extension = extensionFor(mimeType), documentId = randomUUID(), storagePath = `${userId}/${documentId}/source.${extension}`;
   const supabase = supabaseAdmin();
   const { error: insertError } = await supabase.from("vault_documents").insert({
-    id: documentId, user_id: userId, title, category: body.category || "Fee Statement", original_name: originalName,
+    id: documentId, user_id: userId, title, category: "Document", original_name: originalName,
     storage_path: storagePath, mime_type: mimeType, byte_size: body.byteSize, status: "UPLOADING",
   });
+  if (insertError?.code === "42P01" || insertError?.code === "PGRST205") throw new ApiError(503, "Folio database setup is incomplete. Apply the Supabase migration before uploading.");
   if (insertError) throw new Error(`Unable to create document: ${insertError.code}`);
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(storagePath, { upsert: false });
   if (error || !data) {
     await supabase.from("vault_documents").delete().eq("id", documentId).eq("user_id", userId);
-    throw new Error(`Unable to create secure upload: ${error?.message || "unknown"}`);
+    if (/bucket.*not found/i.test(error?.message || "")) throw new ApiError(503, "Secure storage is not ready. Create the folio-documents bucket by applying the Supabase migration.");
+    throw new ApiError(503, "Secure storage could not prepare this upload. Check the Supabase URL, service key, and storage bucket.");
   }
   return NextResponse.json({ documentId, path: data.path, token: data.token, signedUrl: data.signedUrl });
 }

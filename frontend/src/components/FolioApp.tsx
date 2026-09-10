@@ -35,15 +35,13 @@ import {
   CalendarDays,
   Trash2,
   ArchiveRestore,
-  CreditCard,
-  Zap,
-  ZapOff,
   ScanFace,
   ChevronLeft,
-  ChevronDown
+  ChevronDown,
+  Info
 } from "lucide-react";
 
-type DocType = "Funding Award Letter" | "Bursary Agreement" | "Fee Statement" | "Bank Letter" | "Appeal Correspondence";
+type DocType = "Document" | "Funding Award Letter" | "Bursary Agreement" | "Fee Statement" | "Bank Letter" | "Appeal Correspondence";
 
 type DocEntity = {
   label: string;
@@ -78,9 +76,20 @@ type AuditEntry = {
 };
 
 type AuthUser = { id: string; email: string; displayName: string };
+type Deadline = { id: number; action: string; doc: string; due: string; days: number; severity: string; completed: boolean };
+type ChatMessage = {
+  role: "assistant" | "user";
+  text: string;
+  sourceDoc?: string;
+  sourcePage?: number;
+  sources?: { doc: string; detail: string }[];
+  complianceConfidence?: number;
+  complianceLogic?: string;
+};
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 
 const typeStyles: Record<DocType, { label: string; color: string; tint: string; border: string }> = {
+  "Document": { label: "Document", color: "#33455e", tint: "#eef1f5", border: "#d8dee7" },
   "Funding Award Letter": { label: "Funding", color: "#c97a2b", tint: "#fbede0", border: "#f3dbca" },
   "Bursary Agreement": { label: "Bursary", color: "#0e7c74", tint: "#e4f2f0", border: "#cbe3e0" },
   "Fee Statement": { label: "Fees", color: "#33455e", tint: "#e8ecf1", border: "#ced5de" },
@@ -88,83 +97,9 @@ const typeStyles: Record<DocType, { label: string; color: string; tint: string; 
   "Appeal Correspondence": { label: "Appeal", color: "#b3432d", tint: "#fbe7e2", border: "#f3cfc6" },
 };
 
-const initialDocuments: Document[] = [
-  {
-    id: 1,
-    title: "Government Funding Award Letter — 2026",
-    type: "Funding Award Letter",
-    date: "14 Jan 2026",
-    pages: 3,
-    status: "Ready",
-    confidence: 96,
-    summary: "Confirms full government funding for the 2026 academic year, covering tuition, accommodation, and a book allowance. Funding continues only if a 60% average is maintained and you remain registered full-time. Proof of registration must be submitted within 30 days of the start of term.",
-    entities: [
-      { label: "Award amount", value: "R98,450", bbox: { top: 22, left: 62, width: 22, height: 6 } },
-      { label: "Condition", value: "Maintain 60% average", bbox: { top: 41, left: 15, width: 32, height: 6 } },
-      { label: "Action required", value: "Proof of registration by 12 Feb 2026", bbox: { top: 62, left: 15, width: 55, height: 6 } }
-    ],
-    rawText: "STUDENT FINANCIAL AID OFFICE. AWARD NOTIFICATION 2026. Dear Student, Your application for financial assistance has been approved. Total Award Value: R98,450. This award covers: Tuition fees (R62,000), Accommodation allowance (R24,000), Book allowance (R12,450). CONDITIONS OF AWARD: 1. Maintain a minimum academic average of 60%. 2. Remain registered as a full-time student. 3. Submit proof of registration within 30 days of term start. Failure to comply will result in immediate suspension of all disbursements."
-  },
-  {
-    id: 2,
-    title: "Merit Bursary Agreement — 2026",
-    type: "Bursary Agreement",
-    date: "02 Feb 2026",
-    pages: 5,
-    status: "Ready",
-    confidence: 91,
-    summary: "Sets out a partial tuition bursary, renewable annually, conditional on submitting an updated academic transcript and a signed renewal declaration before the renewal window closes on 02 August 2026.",
-    entities: [
-      { label: "Bursary value", value: "R32,000 / year", bbox: { top: 25, left: 58, width: 25, height: 6 } },
-      { label: "Renewal due", value: "02 Aug 2026", bbox: { top: 48, left: 15, width: 20, height: 6 } },
-      { label: "Requirement", value: "Transcript + signed declaration", bbox: { top: 68, left: 15, width: 45, height: 6 } }
-    ],
-    rawText: "ACADEMIC MERIT BURSARY SCHEME. AGREEMENT FORM 2026. This document binds the scholar and the institution. Value of benefit: R32,000 per annum, directly credited to tuition. Renewal parameters: Student must make application for renewal before 02 August 2026. Requirements for submission: Must attach formal transcript showing average grade above 75%, and a completed, signed renewal declaration form."
-  },
-  {
-    id: 3,
-    title: "Semester 1 Fee Statement",
-    type: "Fee Statement",
-    date: "20 Jan 2026",
-    pages: 2,
-    status: "Ready",
-    confidence: 98,
-    summary: "Itemises tuition, residence and meal plan charges for Semester 1, less the financial aid payment already received. An outstanding balance is due before the exam period begins on 28 February 2026.",
-    entities: [
-      { label: "Balance due", value: "R4,120", bbox: { top: 78, left: 62, width: 18, height: 6 } },
-      { label: "Due date", value: "28 Feb 2026", bbox: { top: 52, left: 55, width: 20, height: 6 } }
-    ],
-    rawText: "STUDENT ACCOUNTS & FINANCE. DEPOSIT SLIP & STATEMENT. Student Number: 2026-AM. Semester 1 ledger items: Tuition: R45,000. Residence: R12,000. Meal plan: R8,000. Total Charges: R65,000. Less: Financial aid disbursement credit (R60,880). NET BALANCE DUE: R4,120. Due Date: 28 February 2026. Outstanding amounts must be settled before exam entrance permits are generated."
-  },
-  {
-    id: 4,
-    title: "Standard Bank Account Confirmation",
-    type: "Bank Letter",
-    date: "11 Jan 2026",
-    pages: 1,
-    status: "Ready",
-    confidence: 99,
-    summary: "Confirms the student's account details for financial aid disbursement purposes. Verification status is fully completed and cleared with no pending liabilities.",
-    entities: [
-      { label: "Purpose", value: "Disbursement verification", bbox: { top: 35, left: 15, width: 40, height: 6 } }
-    ],
-    rawText: "FOLIO PARTNER BANK. CLIENT ACCOUNT VERIFICATION LETTER. Date: 11 January 2026. To whom it may concern, We confirm that the registered student holds an active transactional account number ending in 192 with our branch. This account is validated and authorized for financial aid disbursement deposit credits. No restrictions apply."
-  },
-];
+const initialDeadlines: Deadline[] = [];
 
-const initialDeadlines = [
-  { id: 1, action: "Submit proof of registration", doc: "Government Funding Award Letter — 2026", due: "12 Feb 2026", days: 3, severity: "high", completed: false },
-  { id: 2, action: "Submit transcript & renewal declaration", doc: "Merit Bursary Agreement — 2026", due: "02 Aug 2026", days: 9, severity: "medium", completed: false },
-  { id: 3, action: "Settle outstanding balance", doc: "Semester 1 Fee Statement", due: "28 Feb 2026", days: 14, severity: "low", completed: false },
-];
-
-const initialAuditLogs: AuditEntry[] = [
-  { id: 1, time: "24 Jul 2026, 09:12", actor: "Student", action: "Document Viewed", detail: "Government Funding Award Letter — 2026 (POPIA Audited Access)", category: "Access" },
-  { id: 2, time: "23 Jul 2026, 18:41", actor: "Student", action: "AI Grounded Query", detail: "Asked: 'When is my bursary renewal due?'", category: "AI Queries" },
-  { id: 3, time: "20 Jul 2026, 08:03", actor: "Security Service", action: "AES-256 Rotation", detail: "Encrypted at rest: Semester 1 Fee Statement (AWS S3-SSE KMS)", category: "Security" },
-  { id: 4, time: "14 Jan 2026, 14:55", actor: "Student", action: "Document Uploaded", detail: "Government Funding Award Letter — 2026 (Classified and summarised)", category: "Document" },
-  { id: 5, time: "14 Jan 2026, 14:50", actor: "OIDC Identity System", action: "Secure SSO Login", detail: "MFA Token Authorized via OAuth 2.0 (Folio Student SSO Portal)", category: "Security" },
-];
+const initialAuditLogs: AuditEntry[] = [];
 
 const navItems = [
   ["dashboard", "Dashboard", LayoutDashboard],
@@ -196,7 +131,7 @@ export default function FolioApp() {
 
   // Navigation, documents, and interactive highlights
   const [screen, setScreen] = useState<Screen>("dashboard");
-  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [hoveredEntity, setHoveredEntity] = useState<DocEntity | null>(null);
   const [docTab, setDocTab] = useState<"preview" | "ocr" | "json">("preview");
@@ -208,7 +143,6 @@ export default function FolioApp() {
   // Upload state machine
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadTitle, setUploadTitle] = useState("");
-  const [uploadType, setUploadType] = useState<DocType>("Fee Statement");
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadStep, setUploadStep] = useState<"idle" | "uploading" | "ocr" | "nlp" | "done">("idle");
 
@@ -221,13 +155,6 @@ export default function FolioApp() {
   const [logFilter, setLogFilter] = useState<LogCategory>("All");
   const [logSearch, setLogSearch] = useState("");
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(initialAuditLogs);
-
-  // AI Credit system states
-  const [aiCredits, setAiCredits] = useState(18);
-  const [monthlyFreeUsed, setMonthlyFreeUsed] = useState(7);
-  const monthlyFreeLimit = 25;
-  const [showCreditModal, setShowCreditModal] = useState(false);
-  const [purchaseCredits, setPurchaseCredits] = useState(50);
 
   // Voice command states
   const [voiceActive, setVoiceActive] = useState(false);
@@ -265,10 +192,10 @@ export default function FolioApp() {
 
   // Grounded Chat Q&A states
   const [chatInput, setInput] = useState("");
-  const [chatMessages, setMessages] = useState<Array<{ role: "assistant" | "user"; text: string; sourceDoc?: string; sourcePage?: number; sources?: { doc: string; detail: string }[] }>>([
+  const [chatMessages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      text: "Hi, I can help you check funding conditions, bursary renewal, fees, proof of registration, and bank confirmation. Every answer is grounded in a document in your vault.",
+      text: "Hi — ask me to explain, compare, summarise, draft, or reason through anything in your documents. I’ll show the sources I used and say when the evidence is uncertain.",
     },
   ]);
   const [aiTyping, setAiTyping] = useState(false);
@@ -434,7 +361,7 @@ export default function FolioApp() {
     try {
       const prepare = await fetch(`${API_URL}/v1/documents/upload-url`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
-        body: JSON.stringify({ title: uploadTitle, category: uploadType, fileName: uploadFile.name, mimeType: uploadFile.type, byteSize: uploadFile.size }),
+        body: JSON.stringify({ title: uploadTitle, fileName: uploadFile.name, mimeType: uploadFile.type, byteSize: uploadFile.size }),
       });
       const upload = await prepare.json().catch(() => ({}));
       if (!prepare.ok) throw new Error(upload.message || "Unable to prepare secure upload");
@@ -497,44 +424,46 @@ export default function FolioApp() {
 
   // AI QA Grounded responses log
   const handleSendChat = async (question = chatInput) => {
-    if (!question.trim()) return;
-
-    // Credit gate: check free monthly allowance first, then paid credits
-    const hasMonthlyFree = monthlyFreeUsed < monthlyFreeLimit;
-    const hasPaidCredits = aiCredits > 0;
-    if (!hasMonthlyFree && !hasPaidCredits) {
-      setShowCreditModal(true);
-      return;
-    }
-
-    setMessages((prev) => [...prev, { role: "user", text: question }]);
+    if (!question.trim() || aiTyping) return;
+    const requestHistory = chatMessages.slice(-10).map(({ role, text }) => ({ role, text }));
+    setMessages((prev) => [...prev, { role: "user", text: question.trim() }, { role: "assistant", text: "" }]);
     setInput("");
     setAiTyping(true);
 
-    // Deduct credit
-    if (hasMonthlyFree) {
-      setMonthlyFreeUsed((prev) => prev + 1);
-    } else {
-      setAiCredits((prev) => prev - 1);
-    }
-
     try {
-      const history = chatMessages.slice(-8).map(({ role, text }) => ({ role, text }));
       const response = await fetch(`${API_URL}/v1/ai/ask`, { method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ question, history }) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "The assistant could not answer right now");
-      const responseText = data.answer as string;
-      const citations = (data.citations || []).map((citation: { title: string; page: number }) => ({
-        doc: citation.title, detail: `Page ${citation.page}`
-      }));
-      const matchedDoc = citations[0]?.doc;
-      const matchedPage = data.citations?.[0]?.page;
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: responseText, sourceDoc: matchedDoc, sourcePage: matchedPage, sources: citations }
-      ]);
-      setAiTyping(false);
+        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ question, history: requestHistory }) });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "The assistant could not answer right now");
+      }
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      let pending = "", responseText = "", matchedDoc: string | undefined, matchedPage: number | undefined;
+      while (true) {
+        const { done, value } = await reader.read();
+        pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = pending.split("\n");
+        pending = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { type: "delta" | "replace" | "done"; text?: string; citations?: Array<{ title: string; page: number }>; compliance?: { confidence: number; logic: string } | null };
+          if (event.type === "delta" && event.text) {
+            responseText += event.text;
+            setAiTyping(false);
+            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, text: message.text + event.text } : message));
+          } else if (event.type === "replace") {
+            responseText = event.text || "I could not complete that answer.";
+            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, text: responseText } : message));
+          } else if (event.type === "done") {
+            const citations = (event.citations || []).map((citation) => ({ doc: citation.title, detail: `Page ${citation.page}` }));
+            matchedDoc = citations[0]?.doc;
+            matchedPage = event.citations?.[0]?.page;
+            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, sourceDoc: matchedDoc, sourcePage: matchedPage, sources: citations,
+              complianceConfidence: event.compliance?.confidence, complianceLogic: event.compliance?.logic } : message));
+          }
+        }
+        if (done) break;
+      }
       // Read response aloud if voice was active
       if (voiceActive) speakText(responseText);
 
@@ -550,11 +479,8 @@ export default function FolioApp() {
       setAuditLogs((prev) => [newLog, ...prev]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "The assistant could not answer right now";
-      setMessages((prev) => [...prev, { role: "assistant", text: message }]);
+      setMessages((prev) => prev.map((item, index) => index === prev.length - 1 && item.role === "assistant" ? { ...item, text: message } : item));
       setToast(message); setToastType("error");
-      // Restore the locally displayed credit when the provider request fails.
-      if (hasMonthlyFree) setMonthlyFreeUsed((prev) => Math.max(0, prev - 1));
-      else setAiCredits((prev) => prev + 1);
     } finally { setAiTyping(false); }
   };
 
@@ -768,22 +694,6 @@ export default function FolioApp() {
     window.speechSynthesis.speak(utter);
   };
 
-  // Credit purchase handler
-  const handlePurchaseCredits = () => {
-    setAiCredits((prev) => prev + purchaseCredits);
-    setShowCreditModal(false);
-    setToast(`${purchaseCredits} AI credits added to your account.`);
-    const newLog: AuditEntry = {
-      id: Date.now(),
-      time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
-      actor: "Student",
-      action: "Credit Purchase",
-      detail: `Purchased ${purchaseCredits} AI query credits via payment gateway.`,
-      category: "Security"
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-  };
-
   // Soft-delete a document (move to recycle bin)
   const handleDeleteDocument = async (doc: Document) => {
     const response = await fetch(`${API_URL}/v1/documents/${doc.id}`, {
@@ -880,6 +790,11 @@ export default function FolioApp() {
     });
   }, [auditLogs, logFilter, logSearch]);
 
+  const complianceConfidence = useMemo(() => {
+    const related = documents.filter((document) => /compliance|popia|privacy|regulat|requirement|obligation|eligib|policy|condition/i.test(`${document.title} ${document.summary} ${document.rawText || ""}`));
+    return related.length ? Math.min(...related.map((document) => document.confidence)) : null;
+  }, [documents]);
+
 
   if (authStep === "checking") {
     return <main className="login-page"><div className="login-card"><div className="brand"><span><FolderOpen size={19} /></span><div><b>Folio</b><small>Checking your secure session...</small></div></div></div></main>;
@@ -903,7 +818,7 @@ export default function FolioApp() {
           <form onSubmit={handleCredentialsSubmit} className="login-form">
             {authMode === "register" && <label>
               Full Name
-              <input value={displayNameInput} onChange={(e) => setDisplayNameInput(e.target.value)} placeholder="e.g. Londiwe Mahlangu" required maxLength={120} />
+              <input value={displayNameInput} onChange={(e) => setDisplayNameInput(e.target.value)} placeholder="Your full name" autoComplete="name" required maxLength={120} />
             </label>}
             <label>
               Student Email Address
@@ -960,7 +875,7 @@ export default function FolioApp() {
           </button>
 
           <small className="login-foot">
-            Designed for POPIA-aligned handling. Production encryption and TLS are enforced by the AWS deployment configuration.
+            POPIA-aligned by design · AWS deployment-ready architecture
           </small>
         </div>
       </main>
@@ -1037,7 +952,7 @@ export default function FolioApp() {
           <span><FolderOpen size={17} /></span>
           <div>
             <b>Folio</b>
-            <small>Financial documents understood</small>
+            <small>Financial documents understood · AWS-ready</small>
           </div>
         </div>
 
@@ -1165,7 +1080,7 @@ export default function FolioApp() {
           <div className="header-actions">
             <div className="popia-compliant-pill desktop-only">
               <ShieldCheck size={13} />
-              <span>POPIA Secured</span>
+              <span>POPIA aligned · AWS-ready</span>
             </div>
 
             <div style={{ position: "relative" }}>
@@ -1270,8 +1185,8 @@ export default function FolioApp() {
                     <ShieldCheck size={18} />
                   </div>
                   <div>
-                    <strong>98.4%</strong>
-                    <span>Compliance Health</span>
+                    <strong>{complianceConfidence == null ? "—" : `${complianceConfidence}%`}</strong>
+                    <span>Compliance Confidence</span>
                   </div>
                 </div>
               </div>
@@ -1285,6 +1200,13 @@ export default function FolioApp() {
                   </div>
 
                   <div className="timeline-dashboard-list">
+                    {deadlines.length === 0 && (
+                      <div className="empty-timeline-state">
+                        <Clock3 size={20} />
+                        <b>No deadlines yet</b>
+                        <small>Deadlines identified from your uploaded documents will appear here.</small>
+                      </div>
+                    )}
                     {deadlines.slice(0, 3).map((deadline) => (
                       <div className={`deadline-row ${deadline.completed ? "completed-row" : ""}`} key={deadline.id}>
                         <span className={`severity ${deadline.severity}`} />
@@ -1311,11 +1233,11 @@ export default function FolioApp() {
                     <b>Ask AI Assistant</b>
                   </div>
 
-                  <button className="ask-prompt" onClick={() => { setInput("When is my bursary renewal due?"); setScreen("ask"); }}>
+                  <button className="ask-prompt" onClick={() => { setInput("What should I pay attention to in my documents?"); setScreen("ask"); }}>
                     <span><MessageSquareText size={18} /></span>
                     <div>
-                      <b>&quot;When is my bursary renewal due?&quot;</b>
-                      <small>Answers are grounded strictly in your verified S3 stored paperwork.</small>
+                      <b>&quot;What should I pay attention to?&quot;</b>
+                      <small>Ask open-ended questions and inspect the document sources behind each answer.</small>
                     </div>
                     <ChevronRight size={16} />
                   </button>
@@ -1590,7 +1512,7 @@ export default function FolioApp() {
 
                   <div className="po-compliance-box">
                     <LockKeyhole size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span><b>POPIA Restricted Session:</b> Access to original file blocks is logged to system audit tables under token auth scope.</span>
+                    <span><b>POPIA Restricted Session:</b> Access to original file blocks is logged under the authenticated session. The architecture remains ready for AWS KMS and S3 deployment.</span>
                   </div>
                 </div>
               </div>
@@ -1602,31 +1524,14 @@ export default function FolioApp() {
             <section className="screen chat-screen animate-fade-in">
               <div className="screen-heading split">
                 <div>
-                  <label>Grounded Assistant</label>
-                  <h1>Consult Your Vault Paperwork</h1>
-                  <p>Answers are computed using authorised context chunks only. No global model hallucination.</p>
-                </div>
-                <div className="credit-meter-panel">
-                  <div className="credit-meter-header">
-                    <Zap size={13} style={{ color: "var(--teal)" }} />
-                    <b>AI Credits</b>
-                  </div>
-                  <div className="credit-bar-track">
-                    <div className="credit-bar-fill" style={{ width: `${Math.min(100, (monthlyFreeUsed / monthlyFreeLimit) * 100)}%` }} />
-                  </div>
-                  <div className="credit-bar-labels">
-                    <small>{monthlyFreeLimit - monthlyFreeUsed} free left this month</small>
-                    <small>{aiCredits} paid</small>
-                  </div>
-                  <button className="credit-buy-btn" onClick={() => setShowCreditModal(true)}>
-                    <CreditCard size={11} style={{ marginRight: 4 }} /> Buy Credits
-                  </button>
+                  <label>Folio AI · Document grounded</label>
+                  <h1>Ask anything about your documents</h1>
                 </div>
               </div>
 
               <div className="chat">
                 <div className="chat-log" ref={chatLogRef}>
-                  {chatMessages.map((msg, idx) => (
+                  {chatMessages.map((msg, idx) => msg.text ? (
                     <div className={`message ${msg.role}`} key={idx}>
                       {msg.role === "assistant" && (
                         <span className="ai-avatar"><Sparkles size={13} /></span>
@@ -1649,6 +1554,15 @@ export default function FolioApp() {
                             ))}
                           </div>
                         )}
+                        {typeof msg.complianceConfidence === "number" && (
+                          <div className="compliance-confidence">
+                            <span><ShieldCheck size={12} /> Compliance confidence {msg.complianceConfidence}%</span>
+                            <details>
+                              <summary aria-label="How compliance confidence is calculated"><Info size={13} /></summary>
+                              <p>{msg.complianceLogic}</p>
+                            </details>
+                          </div>
+                        )}
                         {msg.role === "assistant" && msg.text && (
                           <button
                             className="speak-btn"
@@ -1660,7 +1574,7 @@ export default function FolioApp() {
                         )}
                       </div>
                     </div>
-                  ))}
+                  ) : null)}
                   {aiTyping && (
                     <div className="message assistant">
                       <span className="ai-avatar"><Sparkles size={13} className="spin" /></span>
@@ -1673,13 +1587,13 @@ export default function FolioApp() {
                   )}
                 </div>
 
-                <div className="suggestions">
-                  {["When is my bursary renewal?", "Do I still owe any fees?", "What are my funding award conditions?", "When is proof of registration due?", "Is my bank account confirmed for disbursement?"].map((suggestion) => (
+                {chatMessages.length === 1 && <div className="suggestions">
+                  {["Summarise my documents", "What needs my attention?", "Compare the conditions", "Draft my next steps"].map((suggestion) => (
                     <button key={suggestion} onClick={() => handleSendChat(suggestion)}>
                       {suggestion}
                     </button>
                   ))}
-                </div>
+                </div>}
 
                 {voiceActive && <p className="voice-status chat-voice-status" role="status"><i />{voiceStatus === "transcribing" ? "Transcribing your question — you can edit it when ready." : "Listening — your words appear here as you speak."}</p>}
                 <div className="chat-input">
@@ -1690,11 +1604,13 @@ export default function FolioApp() {
                   >
                     {voiceActive ? <MicOff size={15} /> : <Mic size={15} />}
                   </button>
-                  <input
+                  <textarea
                     value={chatInput}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendChat()}
-                    placeholder={voiceActive ? "Listening..." : "Ask or speak about funding, conditions, fees..."}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                    placeholder={voiceActive ? "Listening..." : "Message Folio AI"}
+                    aria-label="Message Folio AI"
+                    rows={1}
                   />
                   {voiceActive && <button className="voice-stop-btn chat-stop-btn" type="button" onClick={stopVoiceInput}><MicOff size={13} /> Stop</button>}
                   <button className="primary" onClick={() => handleSendChat()} disabled={aiTyping}>
@@ -1732,6 +1648,13 @@ export default function FolioApp() {
 
               {deadlineView === "timeline" && (
                 <div className="timeline-layout">
+                  {deadlines.length === 0 && (
+                    <div className="panel empty-timeline-state">
+                      <Clock3 size={24} />
+                      <b>No document deadlines yet</b>
+                      <small>When Folio identifies a dated obligation in an uploaded document, it will appear here for your review.</small>
+                    </div>
+                  )}
                   {deadlines.map((deadline, idx) => (
                     <div className={`timeline-item-block ${deadline.completed ? "timeline-item-done" : ""}`} key={deadline.id}>
                       <div className={`timeline-indicator ${deadline.severity}`} />
@@ -1826,10 +1749,10 @@ export default function FolioApp() {
               <div className="screen-heading">
                 <label>Compliance Hub</label>
                 <h1>POPIA Compliance & Encryption Control</h1>
-                <p>Folio enforces strict privacy compliance in accordance with South Africa&apos;s POPIA regulations.</p>
+                <p>Folio is designed to support POPIA-aligned handling of your private documents and account activity.</p>
               </div>
 
-              <div className="columns" style={{ gridTemplateColumns: "1fr 1.2fr" }}>
+              <div className="columns security-grid">
                 {/* Security and Governance Controls */}
                 <div className="panel">
                   <div className="panel-heading">
@@ -1840,17 +1763,17 @@ export default function FolioApp() {
                     <div className="setting-control-row">
                       <div>
                         <b>Multi-factor Auth (MFA)</b>
-                        <small>Strict OTP checks during Single Sign-On registration.</small>
+                        <small>Email OTP verification protects registration and sign-in.</small>
                       </div>
-                      <button className={`toggle ${mfaEnabled ? "on" : ""}`} onClick={() => { setMfaEnabled(!mfaEnabled); setToast(mfaEnabled ? "MFA disabled — not recommended." : "MFA re-enabled. Session secured."); }}><span /></button>
+                      <button aria-label="Toggle multi-factor authentication" aria-pressed={mfaEnabled} className={`toggle ${mfaEnabled ? "on" : ""}`} onClick={() => { setMfaEnabled(!mfaEnabled); setToast(mfaEnabled ? "MFA disabled — not recommended." : "MFA re-enabled. Session secured."); }}><span /></button>
                     </div>
 
                     <div className="setting-control-row">
                       <div>
-                        <b>App Biometric Locker</b>
-                        <small>Verify session token when opening native workspace.</small>
+                        <b>Native Biometric Lock</b>
+                        <small>Available when Folio&apos;s native passkey flow is connected.</small>
                       </div>
-                      <button className={`toggle ${biometricEnabled ? "on" : ""}`} onClick={() => { setBiometricEnabled(!biometricEnabled); setToast(biometricEnabled ? "Biometric lock disabled." : "Biometric lock enabled via FIDO2."); }}><span /></button>
+                      <button aria-label="Toggle native biometric lock" aria-pressed={biometricEnabled} className={`toggle ${biometricEnabled ? "on" : ""}`} onClick={() => { setBiometricEnabled(!biometricEnabled); setToast(biometricEnabled ? "Biometric lock disabled." : "Biometric lock preference enabled."); }}><span /></button>
                     </div>
 
                     <div className="setting-control-row">
@@ -1858,7 +1781,7 @@ export default function FolioApp() {
                         <b>Financial Aid Data Share</b>
                         <small>Grant temporary summary review access to student advisor.</small>
                       </div>
-                      <button className={`toggle ${sharing ? "on" : ""}`} onClick={() => setSharing(!sharing)}>
+                      <button aria-label="Toggle financial aid data sharing" aria-pressed={sharing} className={`toggle ${sharing ? "on" : ""}`} onClick={() => setSharing(!sharing)}>
                         <span />
                       </button>
                     </div>
@@ -1867,8 +1790,8 @@ export default function FolioApp() {
                   <div className="security-notice-box-gold">
                     <LockKeyhole size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <b>AES-256 KMS At-Rest Encryption</b>
-                      <p>Stored document objects reside in encrypted S3 volumes. Access is authorized via signed URL parameters with brief session durations.</p>
+                      <b>AWS KMS + S3 deployment-ready</b>
+                      <p>Folio currently uses private signed storage. Its production architecture is prepared for AWS KMS-managed encryption and private S3 object access.</p>
                     </div>
                   </div>
                 </div>
@@ -1932,7 +1855,7 @@ export default function FolioApp() {
         </div>
 
         {/* Mobile bottom navigation bar */}
-        <div className="mobile-bottom-navigation-bar">
+        <nav className="mobile-bottom-navigation-bar" aria-label="Primary navigation">
           {navItems.map(([key, label, Icon]) => (
             <button
               key={key}
@@ -1948,7 +1871,7 @@ export default function FolioApp() {
               <span>{label}</span>
             </button>
           ))}
-        </div>
+        </nav>
       </div>
 
       {/* MODAL: SECURE PAPERWORK UPLOAD FLOW */}
@@ -1967,7 +1890,7 @@ export default function FolioApp() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  accept=".pdf,.docx,.png,.jpg,.jpeg"
                   style={{ display: "none" }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -2023,19 +1946,6 @@ export default function FolioApp() {
                   />
                 </label>
 
-                <label className="modal-input-label">
-                  Taxonomy Category
-                  <select
-                    value={uploadType}
-                    onChange={(e) => setUploadType(e.target.value as DocType)}
-                    className="modal-select-input"
-                  >
-                    {Object.keys(typeStyles).map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </label>
-
                 <button className="primary full" onClick={handleUploadSubmit} style={{ marginTop: 10 }}>
                   Upload securely <UserCheck size={14} style={{ marginLeft: 6 }} />
                 </button>
@@ -2046,7 +1956,7 @@ export default function FolioApp() {
                   <RotateCw className="spin" size={32} style={{ color: "var(--teal)" }} />
                 </div>
                 <h3>
-                  {uploadStep === "uploading" && "Uploading to Secure S3 Vault..."}
+                  {uploadStep === "uploading" && "Uploading to your secure vault..."}
                   {uploadStep === "ocr" && "Extracting OCR plaintext..."}
                   {uploadStep === "nlp" && "Classifying entities & NLP metrics..."}
                 </h3>
@@ -2058,61 +1968,6 @@ export default function FolioApp() {
                 <span className="upload-progress-percentage">{uploadProgress}% Complete</span>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: AI CREDIT PURCHASE */}
-      {showCreditModal && (
-        <div className="modal-backdrop animate-fade-in" onClick={() => setShowCreditModal(false)}>
-          <div className="modal animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="credits-dialog-title" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-heading">
-              <b id="credits-dialog-title">Top Up AI Credits</b>
-              <button className="close-modal-btn" aria-label="Close AI credits dialog" onClick={() => setShowCreditModal(false)}>
-                <X size={17} />
-              </button>
-            </div>
-
-            <div className="credit-modal-body">
-              <div className="credit-modal-status">
-                <ZapOff size={28} style={{ color: "#c97a2b" }} />
-                <div>
-                  <b>Monthly free allowance used</b>
-                  <p>You have used all {monthlyFreeLimit} free AI queries for this month. Purchase credits to keep asking questions.</p>
-                </div>
-              </div>
-
-              <div className="credit-modal-info">
-                <div className="credit-info-row">
-                  <span>Free queries this month</span>
-                  <strong>{monthlyFreeUsed} / {monthlyFreeLimit}</strong>
-                </div>
-                <div className="credit-info-row">
-                  <span>Paid credits remaining</span>
-                  <strong>{aiCredits}</strong>
-                </div>
-              </div>
-
-              <div className="credit-packages">
-                {[{credits: 25, price: "R15"}, {credits: 50, price: "R25"}, {credits: 100, price: "R45"}].map((pkg) => (
-                  <button
-                    key={pkg.credits}
-                    className={`credit-package-btn ${purchaseCredits === pkg.credits ? "selected" : ""}`}
-                    onClick={() => setPurchaseCredits(pkg.credits)}
-                  >
-                    <Zap size={14} style={{ marginRight: 5 }} />
-                    <b>{pkg.credits} credits</b>
-                    <span>{pkg.price}</span>
-                  </button>
-                ))}
-              </div>
-
-              <p className="credit-modal-note">Document storage, upload, and NLP search remain unrestricted. Credits apply only to AI chatbot queries.</p>
-
-              <button className="primary full" onClick={handlePurchaseCredits}>
-                <CreditCard size={14} style={{ marginRight: 6 }} /> Purchase {purchaseCredits} Credits
-              </button>
-            </div>
           </div>
         </div>
       )}

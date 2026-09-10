@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError, readJson, requireMutationHeader } from "@/lib/server/api";
 import { applySessionCookie, checkPassword, currentUser, hashOtp, hashPassword, hashSession, newSessionToken, normalizeEmail, sendOtp, SESSION_COOKIE } from "@/lib/server/auth";
-import { seedDemoDocuments } from "@/lib/server/documents";
 import { supabaseAdmin } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -87,7 +86,6 @@ async function verify(request: NextRequest) {
   if (result.status === "EXPIRED") throw new ApiError(410, "This code has expired");
   if (result.status === "LOCKED") throw new ApiError(429, "Too many incorrect attempts; request a new code");
   if (result.status !== "VERIFIED" || !result.user_id || !result.email || !result.display_name) throw new ApiError(409, "This verification request cannot be used");
-  await seedDemoDocuments(result.user_id);
   const response = NextResponse.json({ id: result.user_id, email: result.email, displayName: result.display_name });
   applySessionCookie(response, rawToken);
   return response;

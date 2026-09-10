@@ -26,7 +26,6 @@ npm ci --prefix frontend
 npm --prefix frontend run dev
 ```
 
-Use synthetic documents until scanning, extraction, retention, and privacy review are complete. Keep `FOLIO_SEED_DEMO_DOCUMENTS=false` outside intentional local demos.
 
 ## 4. Deploy on Vercel
 
