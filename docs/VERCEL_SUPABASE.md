@@ -14,7 +14,7 @@ Browser clients have no direct table policies. Vercel routes validate the Folio 
 ## 2. Configure providers
 
 1. Verify a sending domain in Resend and set `EMAIL_FROM` to an address on it.
-2. Create an OpenRouter key and set `OPENROUTER_MODEL`. The default is `google/gemma-4-31b-it:free`.
+2. Create an OpenRouter key and set `OPENROUTER_MODEL`. The default is `openrouter/free`, which routes to an available zero-cost model. Folio requests `data_collection=deny`; enable `OPENROUTER_ZDR=true` only when the selected model has a compatible ZDR endpoint.
 3. Generate `AUTH_OTP_PEPPER` with at least 32 random characters. Changing it invalidates outstanding codes.
 
 ## 3. Run locally
