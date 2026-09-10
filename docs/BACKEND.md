@@ -10,7 +10,7 @@ The backend must not proxy large source files through normal API requests unless
 
 ### API service
 
-The Spring Boot API handles OIDC JWT validation, user provisioning, document metadata, signed URL creation, question orchestration, deadlines, consent, audit queries, and health endpoints.
+The Spring Boot API handles Folio account/session validation, user provisioning, document metadata, signed URL creation, question orchestration, deadlines, consent, audit queries, and health endpoints.
 
 ### Processing service
 
@@ -30,7 +30,7 @@ Use a queue for asynchronous processing, a scheduler for retries/retention/remin
 
 Minimum entities and important fields:
 
-- **User:** internal ID, OIDC subject, institution, display name, status, created time, last login.
+- **User:** immutable internal UUID, unique login email, password hash, verification status, display name, created time, and last login.
 - **Role:** user ID, role name, institution/tenant scope, grant/revoke timestamps.
 - **Document:** ID, owner ID, title, category, original filename, media type, size, checksum, object key, status, parser version, created time, retention expiry.
 - **DocumentVersion:** document ID, source object key, processing attempt, pipeline version, status, error category, timestamps.
@@ -98,8 +98,8 @@ Use consistent problem responses with error code, request ID, safe message, and 
 
 ## 6. Security invariants
 
-- Validate OIDC JWT issuer, audience, signature, expiry, and required claims.
-- Use OIDC subject IDs, not email addresses, as identity keys.
+- Validate revocable session-token hashes and expiry on every protected request.
+- Use generated UUIDs, not email addresses, as relational identity keys.
 - Authorise at controller/service/repository boundaries; retrieval filters must include owner, tenant, consent, retention, and role scope.
 - Encrypt S3 objects, database backups, queue payloads where applicable, and all transport with TLS.
 - Issue short-lived signed URLs with content disposition and content type restrictions.
@@ -123,7 +123,7 @@ Use consistent problem responses with error code, request ID, safe message, and 
 
 - Unit tests for claim mapping, deadline parsing, state transitions, error mapping, scope construction, and citation validation.
 - Repository tests for ownership, consent expiry, retention, pagination, and unique constraints.
-- API integration tests for OIDC claims, 401/403 behaviour, signed URL expiry, idempotent uploads, and safe problem responses.
+- API integration tests for registration/MFA/session abuse cases, 401/403 behaviour, signed URL expiry, idempotent uploads, and safe problem responses.
 - Worker tests for retries, duplicate jobs, partial failure, parser versioning, and poison messages.
 - Security tests for IDOR, cross-user retrieval, prompt injection in documents, malicious files, and log redaction.
 - Contract tests to keep frontend API types aligned with backend responses.
@@ -136,11 +136,10 @@ Define runbooks for compromised credentials, object-storage exposure, queue pois
 
 ## 10. Delivery sequence
 
-1. Add OIDC resource server, user provisioning, and request identity context.
+1. Harden the implemented Folio registration, Resend MFA, session, and request identity context.
 2. Add PostgreSQL migrations, repository tests, and document metadata entities.
 3. Add signed upload/download flow, file validation, checksum, and object-storage encryption.
 4. Add queue-backed processing state machine, leases, retries, and failure categories.
 5. Add OCR, classification, extraction, evidence coordinates, and parser versioning.
 6. Add chunking, embeddings, authorised retrieval, citation validation, and abstention.
 7. Add deadlines, user corrections, consent, audit events, export/deletion, retention jobs, rate limits, and observability.
-

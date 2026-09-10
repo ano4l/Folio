@@ -9,11 +9,12 @@ Folio is an end-to-end secure student financial-document workspace designed to h
 The Folio workspace is structured as a modular multi-tier monorepo:
 
 - **Frontend (`/frontend`)**: Next.js 14 (App Router), React 18, TypeScript, TailwindCSS, Lucide React, and Radix UI. Built as a responsive web client supporting desktop multi-column layouts and mobile-optimized interfaces.
-- **Backend (`/backend`)**: Spring Boot 3, Java 21, Spring Security (OIDC/OAuth2), Spring Data JPA, Flyway migrations, and PostgreSQL. Serves REST APIs for document metadata, grounded Q&A retrieval, and POPIA audit event logging.
+- **Active API (`/frontend/app/api`)**: Vercel-hosted Next.js routes for registration, Resend MFA, revocable sessions, private document intake, and owner-scoped OpenRouter Q&A.
+- **Future AWS API (`/backend`)**: The Spring Boot service is retained as the migration path when Folio moves to AWS.
 - **Mobile (`/mobile`)**: Cross-platform mobile app built with Flutter (Dart 3.7+), implementing Apple Human Interface Guidelines (HIG) and a custom Liquid Glass frosted container design system.
 - **iOS (`/ios`)**: Native SwiftUI replica of the Flutter app, deployable to a physical iPhone via Xcode with no third-party dependencies.
 - **Deliverables (`/Final Deliverables`)**: The submitted module documents — Deliverable 1 (PDF), Deliverables 2 and 3 (DOCX) — plus `exports/` containing every figure rendered from the final Deliverable 3 document.
-- **Infrastructure (`/docs/RAILWAY.md`, `docker-compose.yml`)**: Railway hosting for Web, API, and PostgreSQL, backed by S3-compatible private object storage for encrypted document bytes.
+- **Active infrastructure**: Vercel hosts the web app/API; Supabase provides PostgreSQL and private object storage. AWS scaffolding and its excluded local runbook remain for later.
 
 ---
 
@@ -39,9 +40,9 @@ Folio/
 |---|---|---|
 | **Web Framework** | Next.js 14 (App Router) | Server-side rendering (SSR), layout nesting, static optimization, and fast client navigation. |
 | **Mobile Engine** | Flutter 3.x / Dart 3.7 | Single codebase for iOS and Android with pixel-perfect custom Apple HIG / Liquid Glass rendering. |
-| **Backend Framework** | Spring Boot 3 (Java 21) | Robust enterprise security (Spring Security OIDC), type-safe JPA persistence, and high-throughput concurrency. |
-| **Database** | PostgreSQL 16 + Flyway | Relational integrity for user document ownership, entity extraction schemas, and versioned migrations. |
-| **Object Storage** | S3-Compatible Storage | Encrypted-at-rest private bucket storage utilizing short-lived presigned URLs for client uploads and previews. |
+| **Active API** | Next.js routes on Vercel | Same-origin secure-cookie APIs with no separate pilot server. |
+| **Database** | Supabase PostgreSQL | Account, session, ownership, document, and AI-query metadata. |
+| **Object Storage** | Supabase Storage | Private files uploaded with short-lived signed upload tokens. |
 | **State Management** | Flutter Provider (`ChangeNotifier`) | Lightweight, zero-boilerplate reactive state model ideal for seamless local state syncing and rapid testing. |
 
 ---
@@ -50,7 +51,7 @@ Folio/
 
 ### 1. Web Frontend Routes (`/frontend`)
 - `/` — Interactive prototype application shell (`FolioApp.tsx`) with dynamic view state switching:
-  - **Auth View (`auth` / `mfa`)**: Simulated credentials submission and 6-digit MFA verification flow with countdown timer.
+  - **Auth View (`auth` / `mfa`)**: Real registration, account verification, password login, and Resend email MFA against same-origin Vercel routes.
   - **Dashboard View (`dashboard`)**: High-level vault statistics, quick AI search prompt shortcut, recent documents, and urgent deadline alerts.
   - **Document Vault (`documents`)**: Searchable document list categorized by award type with confidence scores and dual-tab detail modal (**Extracted Data** vs **OCR Raw Text**).
   - **Ask AI Grounded Q&A (`ask`)**: Conversational RAG assistant with credit metering, voice input, speech synthesis, and document source citation chips (`[doc_id:page]`).
@@ -66,14 +67,15 @@ Folio/
 - `DeadlinesScreen` (`index: 3`) — `TableCalendar` month view + pending obligation list with resolution triggers.
 - `SecurityScreen` (`index: 4`) — `CupertinoSwitch` toggles for MFA/Biometrics/Sharing + immutable POPIA access timeline.
 
-### 3. Backend REST API Endpoints (`/backend`)
+### 3. Active Vercel API Endpoints (`/frontend/app/api`)
 - `GET /api/health` — System readiness and health check.
-- `POST /api/v1/auth/login` & `POST /api/v1/auth/mfa/verify` — OAuth2/OIDC authentication endpoints.
+- `POST /api/v1/auth/register`, `/login`, `/verify`, `/resend`, `/logout` and `GET /me` — Folio-managed account and email-MFA session endpoints.
 - `GET /api/v1/documents` — Paginated list of student documents filtered by ownership scope.
-- `POST /api/v1/documents/upload-url` — Generates presigned S3 upload URL for direct client intake.
+- `POST /api/v1/documents/upload-url` and `/complete` — Creates and verifies a direct private Supabase Storage upload.
+- `DELETE /api/v1/documents/{id}` and `POST /restore` — Owner-scoped recycle-bin operations.
 - `GET /api/v1/documents/{id}` — Retrieves document detail, AI summary, and extracted key-value entities.
 - `GET /api/v1/documents/{id}/preview` — Generates 15-minute presigned URL for document preview.
-- `POST /api/v1/ai/ask` — RAG question answering pipeline returning grounded text and verified citations.
+- `POST /api/v1/ai/ask` — owner-scoped document retrieval and OpenRouter answer generation with a document-relevance gate and abstention.
 - `GET /api/v1/deadlines` & `PATCH /api/v1/deadlines/{id}/complete` — Fetches and resolves deadline items.
 - `GET /api/v1/audit-logs` — Returns append-only POPIA audit events queryable by student ID.
 
@@ -103,8 +105,8 @@ South Africa's Protection of Personal Information Act (POPIA) mandates transpare
 
 ## Infrastructure & Deployment Strategy
 
-- **Railway Hosting**: Next.js Web Frontend, Spring Boot API, and PostgreSQL database are co-located on Railway for low internal network latency.
-- **Docker Parity**: Local development via `docker-compose.yml` mimics the production Railway environment with matching PostgreSQL and environment secrets.
+- **Current pilot**: one Next.js deployment on Vercel, with Supabase PostgreSQL/private Storage, Resend email, and OpenRouter inference.
+- **Later AWS migration**: Spring Boot and Docker assets remain available for ECS/Fargate, RDS, S3, and Secrets Manager.
 
 ---
 
@@ -117,17 +119,7 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 2. Backend Service
-```bash
-cd backend
-mvn spring-boot:run
-```
-Health check endpoint: `http://localhost:8080/api/health`
-
-For local PostgreSQL & Docker setup:
-```bash
-docker compose up --build
-```
+Copy `.env.example` to `frontend/.env.local`, apply the Supabase migration, and provide the required credentials before testing account or document flows. See `docs/VERCEL_SUPABASE.md`.
 
 ### 3. Flutter Mobile App
 ```bash
@@ -144,6 +136,7 @@ flutter run -d chrome # or macos / ios / android
 - `docs/DEVELOPMENT.md` — Engineering Guidelines & Setup
 - `docs/FRONTEND.md` — Next.js Frontend Architecture
 - `docs/BACKEND.md` — Spring Boot API Architecture
+- `docs/VERCEL_SUPABASE.md` — Current Supabase and Vercel setup/deployment guide
 - `docs/RAILWAY.md` — Production Infrastructure & Railway Deployment
 - `docs/progress.md` — Working Delivery Plan & Release Gates
 - `docs/diagrams/` — PlantUML sources and PNG renders for all system-model figures

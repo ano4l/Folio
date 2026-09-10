@@ -53,11 +53,11 @@ An internal operator monitors processing failures, queue health, costs, and inci
 
 ### Journey A: first secure sign-in
 
-1. Student enters their institutional email and password through the Eduvos OIDC flow.
-2. Identity provider completes MFA.
-3. Folio maps the stable OIDC subject to a local user record.
-4. Student lands on the dashboard with an empty-state explanation if no documents exist.
-5. A security audit event records session creation without storing credentials or raw tokens.
+1. Student registers with a name, email, and password.
+2. Folio sends a six-digit account-verification code through Resend.
+3. Successful verification activates the account and creates a protected session.
+4. Future password sign-ins require a fresh email MFA code before a session is created.
+5. Student lands on the dashboard; a security event records session creation without storing credentials, raw OTPs, or raw session tokens.
 
 ### Journey B: upload and understand a document
 
@@ -97,8 +97,9 @@ An internal operator monitors processing failures, queue health, costs, and inci
 
 ### Identity and sessions
 
-- Support Eduvos OIDC authorization-code flow with MFA handled by the identity provider.
-- Use OIDC subject identifiers as stable user keys; never use email as the primary identity key.
+- Support Folio-managed registration, email verification, password login, and email MFA through Resend.
+- Use generated immutable UUIDs as primary identity keys; email is a unique login address, not the relational key.
+- Hash passwords with an adaptive password hash and hash OTP/session tokens before persistence.
 - Expire sessions and signed URLs; support logout and token revocation.
 - Return clear 401 and 403 states without revealing whether another user's document exists.
 
@@ -157,7 +158,7 @@ An internal operator monitors processing failures, queue health, costs, and inci
 
 ## 8. Acceptance criteria for MVP
 
-- A test user can authenticate through the configured OIDC provider and complete MFA.
+- A test user can register, verify the account by email, sign out, and complete password plus email MFA sign-in.
 - An authorised user can upload a supported document through a signed URL and see processing progress.
 - A completed document displays classification, summary, entities, confidence, and source references.
 - A second user cannot list, preview, download, retrieve, or ask questions about the first user's document.
@@ -184,7 +185,7 @@ Mock authentication, simulated processing, seeded documents, responsive UI, and 
 
 ### Secure pilot release
 
-Real OIDC, signed object storage, PostgreSQL metadata, worker processing, access controls, audit trail, and a controlled research cohort.
+Hardened Folio-managed identity, signed object storage, PostgreSQL metadata, worker processing, access controls, audit trail, and a controlled research cohort.
 
 ### Operational release
 
@@ -197,5 +198,4 @@ Notifications, consent-based staff review, export/deletion, monitoring, backups,
 - **Stale deadlines:** keep source evidence, show extraction time, allow correction, and never imply official status.
 - **Model hallucination:** retrieval grounding, citation validation, refusal on insufficient evidence, and answer-quality evaluation.
 - **Operational cost growth:** file limits, queue budgets, model routing, retention policies, and per-user rate limits.
-- **Identity integration delays:** keep a mocked provider for development while reserving production behaviour for OIDC.
-
+- **Email identity abuse or delivery delays:** rate-limit account/MFA actions, keep responses generic, monitor Resend delivery, and provide a reviewed recovery path.

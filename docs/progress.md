@@ -11,13 +11,13 @@ This document is the working delivery plan for Folio. It translates the product 
 
 ## Current snapshot
 
-**Current release:** prototype / version `0.0.1`
+**Current release:** prototype with first server-backed slice / version `0.1.0`
 
-**Repository state:** responsive Next.js frontend prototype, Spring Boot API scaffold, deployment configuration, and detailed product/engineering documentation.
+**Repository state:** responsive Next.js frontend with Vercel-native APIs, Supabase account/session/document persistence and private uploads, Resend MFA, owner-scoped OpenRouter chat, plus retained Spring Boot/AWS migration scaffolding.
 
-**Data safety:** the frontend uses local simulated state. Do not upload real student documents or production credentials to the current prototype.
+**Data safety:** identity and private source upload now cross the real API boundary, but malware scanning, OCR/extraction, deadlines, audit, and some vault detail state remain simulated. Do not upload real student documents yet.
 
-**Verified:** root-level frontend build passes with Next.js production compilation, TypeScript validation, static generation, and optimisation.
+**Verified:** local frontend production build and backend Maven tests pass. Live Supabase migration, Vercel runtime, Resend delivery, and OpenRouter privacy routing still require configured environments.
 
 **Primary next milestone:** complete the secure pilot foundation before connecting real document bytes or identity provider credentials.
 
@@ -49,25 +49,25 @@ This document is the working delivery plan for Folio. It translates the product 
 - **Verification:** keyboard navigation, 320px–1440px viewport review, no horizontal overflow, and production build.
 - **Dependency:** API session bootstrap for production route protection.
 
-### 0.3 Authentication prototype
+### 0.3 Registration, email verification, and MFA sessions
 
-- **Status:** Complete as simulation; production integration planned.
-- **Scope:** credentials screen, six-digit MFA screen, resend countdown, error state, sign-in/sign-out simulation.
+- **Status:** In progress; real API flow implemented, provider delivery unverified.
+- **Scope:** registration, password login, six-digit Resend email verification/MFA, hashed passwords and OTPs, attempt limits, resend cooldown, revocable database sessions, secure cookies, and sign-out.
 - **Implementation tasks:**
-  1. Replace local credential handling with OIDC authorization-code flow.
-  2. Let the identity provider own MFA; do not implement or store MFA secrets in Folio.
-  3. Add session expiry, callback failure, logout, and generic unauthorised states.
-- **Verification:** mocked OIDC tests, callback replay protection, expired session behavior, and no credential logging.
-- **Dependency:** Eduvos issuer, client, audience, redirect URI, and security approval.
+  1. Add per-IP/account rate limiting, password reset, session management, and cleanup jobs.
+  2. Verify the Resend domain and run inbox/deliverability tests.
+  3. Add integration tests for expiry, replay, enumeration resistance, cookie policy, and database restart survival.
+- **Verification:** unit coverage exists for registration verification and session creation; live email and deployed security tests remain.
+- **Dependency:** verified Resend sender, PostgreSQL, HTTPS deployment, and security review.
 
-### 0.4 Document vault prototype
+### 0.4 Document vault and private intake
 
-- **Status:** Complete as simulation; API integration planned.
+- **Status:** In progress; owner-scoped list, private signed upload, completion verification, soft delete, and restore are implemented.
 - **Scope:** seeded document cards, categories, confidence, dates, pages, summaries, detail navigation, and upload modal.
 - **Implementation tasks:**
-  1. Add typed paginated document API.
-  2. Add server-side ownership filtering and generic not-found behavior.
-  3. Add loading, empty, failed, retry, and processing list states.
+  1. Add pagination and processing polling/backoff.
+  2. Add content-signature validation, malware scanning, checksum, and idempotent retry.
+  3. Add authorised preview/download and persistent recycle-bin listing.
 - **Verification:** document list contract tests and cross-user access tests.
 - **Dependency:** user identity and document metadata persistence.
 
@@ -82,16 +82,16 @@ This document is the working delivery plan for Folio. It translates the product 
 - **Verification:** every displayed value opens source evidence; missing evidence produces an explicit state.
 - **Dependency:** OCR/extraction worker and source object access.
 
-### 0.6 Grounded Q&A prototype
+### 0.6 Grounded Q&A service
 
-- **Status:** Complete as simulation; retrieval service planned.
-- **Scope:** question composer, suggested questions, simulated answers, citations, typing indicator, and source passage chips.
+- **Status:** In progress; real OpenRouter call and owner-scoped keyword retrieval implemented against seeded document rows.
+- **Scope:** conversational history, pre-model relevance gate, prompt-injection boundary, abstention, source chips, OpenRouter model configuration, and privacy routing (`data_collection=deny`, ZDR by default).
 - **Implementation tasks:**
-  1. Add typed question and answer contracts.
-  2. Add authorised retrieval filters before vector or keyword search.
-  3. Add citation validation, abstention, answer feedback, and rate limits.
+  1. Replace seeded rows with OCR/page chunks from the real upload pipeline and add embeddings/reranking.
+  2. Validate that every model citation marker maps to returned evidence; reject unsupported claims.
+  3. Add persisted credit metering, feedback, rate limits, evaluation sets, and provider fallback policy.
 - **Verification:** every non-abstained answer has a valid citation; cross-user retrieval tests fail closed.
-- **Dependency:** OCR chunks, embeddings, authorisation scope, and model provider.
+- **Dependency:** OpenRouter key/model availability now; OCR chunks, embeddings, and evaluation data for pilot quality.
 
 ### 0.7 Deadline timeline prototype
 
@@ -119,32 +119,32 @@ This document is the working delivery plan for Folio. It translates the product 
 
 **Goal:** one authorised student can use Folio with real metadata and encrypted source storage.
 
-**Exit gate:** OIDC works, source uploads are private, document ownership is enforced, processing is retryable, and a synthetic document completes the full pipeline.
+**Exit gate:** managed Folio authentication works, source uploads are private, document ownership is enforced, processing is retryable, and a synthetic document completes the full pipeline.
 
 ### 1.1 Identity and access management
 
-- **Status:** Planned / blocked by provider configuration.
-- **Build:** OIDC resource server, issuer/audience validation, user provisioning, session handling, role model, logout, and 401/403 responses.
-- **Security tests:** invalid issuer, wrong audience, expired token, missing subject, IDOR, cross-user list/detail/download, and revoked consent.
+- **Status:** In progress; core account/session path implemented.
+- **Build:** Folio-managed registration, email verification, password + MFA login, session handling, role model, logout, recovery, and 401/403 responses.
+- **Security tests:** OTP expiry/replay/attempts, session expiry/revocation, enumeration, CSRF/CORS, IDOR, cross-user list/detail/download, and revoked consent.
 - **Deliverables:** API security configuration, user migration, frontend session provider, auth integration tests, and runbook.
 
 ### 1.2 Document metadata and persistence
 
-- **Status:** Planned; backend scaffold exists.
+- **Status:** In progress; Supabase covers users, OTPs, sessions, document ownership/status, private bucket configuration, and AI-query metadata.
 - **Build:** migrations and repositories for users, roles, documents, document versions, processing attempts, entities, chunks, deadlines, questions, citations, consents, and audit events.
 - **Rules:** use OIDC subject as external identity; use ownership and tenant constraints; never store source bytes in PostgreSQL.
 - **Verification:** migration tests, constraints, pagination, ownership queries, retention fields, and safe not-found behavior.
 
 ### 1.3 Secure file intake
 
-- **Status:** Planned.
+- **Status:** In progress; signed direct upload and server-side completion verification are implemented, while scanning and file-signature checks remain.
 - **Build:** client validation, signed upload URL endpoint, content-signature validation, size limits, checksum, private object key, malware scan handoff, completion callback, and signed preview/download URL.
 - **Supported MVP types:** PDF, DOCX, JPEG, and PNG.
 - **Verification:** unsupported type, oversized file, corrupted file, duplicate retry, expired URL, wrong content type, malware-positive file, and object isolation tests.
 
 ### 1.4 Processing state machine and queue
 
-- **Status:** Planned.
+- **Status:** In progress; authentication, session bootstrap, document listing/upload/recycle operations, and grounded chat use the active same-origin API.
 - **Build:** `UPLOADED`, `SCANNING`, `OCR`, `CLASSIFYING`, `EXTRACTING`, `INDEXING`, `READY`, `REVIEW_REQUIRED`, and `FAILED` states; leases, idempotency, retry limits, dead-letter handling, and parser version.
 - **Verification:** duplicate jobs, worker restart, timeout, poison message, partial write, retry exhaustion, and safe failure display.
 
