@@ -32,8 +32,9 @@ async function extractText(buffer: Buffer, mime: string) {
   if (mime === "application/pdf") {
     // Load the PDF runtime only when processing begins. Importing it at route
     // startup makes unrelated upload preparation depend on browser canvas APIs.
+    const { CanvasFactory } = await import("pdf-parse/worker");
     const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
+    const parser = new PDFParse({ data: buffer, CanvasFactory });
     try { const result = await parser.getText(); return { text: result.text.slice(0, MAX_TEXT), pages: result.total || 1 }; }
     finally { await parser.destroy(); }
   }
