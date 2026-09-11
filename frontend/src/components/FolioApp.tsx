@@ -271,17 +271,29 @@ export default function FolioApp() {
   };
 
   const handleMfaChange = (index: number, val: string) => {
-    if (!/^[0-9]?$/.test(val)) return;
+    // Browsers commonly provide the whole OTP when the user pastes it or
+    // when autocomplete="one-time-code" fills the field. The old handler
+    // rejected that value, making an otherwise valid login appear broken.
+    const digits = val.replace(/\D/g, "");
+    if (!digits) {
+      const nextMfa = [...mfaDigits];
+      nextMfa[index] = "";
+      setMfaDigits(nextMfa);
+      return;
+    }
     const nextMfa = [...mfaDigits];
-    nextMfa[index] = val;
+    digits.slice(0, 6 - index).split("").forEach((digit, offset) => {
+      nextMfa[index + offset] = digit;
+    });
     setMfaDigits(nextMfa);
 
     // Auto-focus next input
-    if (val && index < 5) {
-      mfaRefs.current[index + 1]?.focus();
+    const nextIndex = Math.min(index + digits.length, 5);
+    if (nextIndex < 5) {
+      mfaRefs.current[nextIndex]?.focus();
     }
     // Auto-submit when last digit entered
-    if (val && index === 5) {
+    if (nextMfa.join("").length === 6) {
       const code = nextMfa.join("");
       if (code.length === 6) {
         setTimeout(() => handleVerifyMfa(nextMfa), 150);
@@ -899,6 +911,8 @@ export default function FolioApp() {
                 ref={(el) => { mfaRefs.current[i] = el; }}
                 type="text"
                 maxLength={1}
+                inputMode="numeric"
+                autoComplete={i === 0 ? "one-time-code" : "off"}
                 value={digit}
                 onChange={(e) => handleMfaChange(i, e.target.value)}
                 onKeyDown={(e) => handleMfaKeyDown(i, e)}
