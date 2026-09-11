@@ -1423,6 +1423,38 @@ button {
   margin: 0 0 10px;
 }
 
+.chat-document-switcher {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 0 0 12px;
+  scrollbar-width: none;
+}
+
+.chat-document-switcher::-webkit-scrollbar { display: none; }
+
+.chat-document-switcher button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--card);
+  color: var(--ink2);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color .18s ease, color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.chat-document-switcher button:hover { transform: translateY(-1px); border-color: var(--teal); color: var(--teal); }
+.chat-document-switcher button.active { background: var(--teal-light); border-color: var(--teal); color: var(--teal-hover); }
+
 .message > div > :last-child {
   margin-bottom: 0;
 }

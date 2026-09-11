@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type HistoryItem = { role?: string; text?: string };
-type AskBody = { question?: string; history?: HistoryItem[] };
+type AskBody = { question?: string; history?: HistoryItem[]; documentId?: string | null };
 type StreamEvent = { type: "delta" | "replace"; text: string } | { type: "done"; model: string | null; citations: Array<{ documentId: string; title: string; page: number }>; compliance: { confidence: number; logic: string } | null };
 
 export async function POST(request: NextRequest) {
@@ -23,8 +23,10 @@ export async function POST(request: NextRequest) {
     if (isGreeting(question)) return immediate("Hello! Ask me to explain, compare, summarise, draft, or plan from anything in your Folio vault.");
 
     const supabase = supabaseAdmin();
-    const { data, error } = await supabase.from("vault_documents").select("id,title,page_number,content,confidence")
-      .eq("user_id", user.id).is("deleted_at", null).eq("status", "READY").not("content", "is", null).limit(100);
+    let documentsQuery = supabase.from("vault_documents").select("id,title,page_number,content,confidence")
+      .eq("user_id", user.id).is("deleted_at", null).eq("status", "READY").not("content", "is", null);
+    if (body.documentId) documentsQuery = documentsQuery.eq("id", body.documentId);
+    const { data, error } = await documentsQuery.limit(100);
     if (error) throw new Error(`Unable to retrieve document evidence: ${error.code}`);
     if (!data?.length) return immediate("Upload a document first. Once it is ready, I can explain it, compare it, draft from it, or help you decide what to do next.");
     const selected = retrieveDocuments(question, history, data as GroundingDocument[]);

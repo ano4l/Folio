@@ -89,7 +89,11 @@ type ChatMessage = {
 };
 
 function renderInlineMarkdown(value: string): ReactNode[] {
-  const parts = value.split(/(\*\*[^*]+\*\*|\[SOURCE:\d+\])/g);
+  const cleaned = value
+    .replace(/\\([*_#`])/g, "$1")
+    .replace(/`{1,3}/g, "")
+    .replace(/\*\*(?=\s|$)|(?<=^|\s)\*\*(?=\S)/g, "");
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|\[SOURCE:\d+\])/g);
   return parts.filter(Boolean).map((part, index) => {
     if (/^\*\*[^*]+\*\*$/.test(part)) {
       return <strong key={index}>{part.slice(2, -2)}</strong>;
@@ -97,7 +101,7 @@ function renderInlineMarkdown(value: string): ReactNode[] {
     if (/^\[SOURCE:\d+\]$/.test(part)) {
       return <span className="inline-source-citation" key={index}>{part}</span>;
     }
-    return <span key={index}>{part}</span>;
+    return <span key={index}>{part.replace(/^#{1,6}\s*/, "").replace(/\*{2,}/g, "")}</span>;
   });
 }
 
@@ -119,7 +123,7 @@ function renderAssistantMarkdown(text: string): ReactNode[] {
   lines.forEach((line, index) => {
     const trimmed = line.trim();
     if (!trimmed) { flushList(); return; }
-    const heading = trimmed.match(/^#{1,4}\s+(.+)$/);
+    const heading = trimmed.match(/^#{1,6}\s*(.+)$/);
     const bullet = trimmed.match(/^(?:[-*]|\d+\.)\s+(.+)$/);
     if (bullet) { listItems.push(bullet[1]); return; }
     flushList();
@@ -132,7 +136,7 @@ function renderAssistantMarkdown(text: string): ReactNode[] {
       else if (level === 3) rendered.push(<h3 {...headingProps}>{content}</h3>);
       else rendered.push(<h4 {...headingProps}>{content}</h4>);
     } else {
-      rendered.push(<p className="message-paragraph" key={`paragraph-${index}`}>{renderInlineMarkdown(trimmed)}</p>);
+      rendered.push(<p className="message-paragraph" key={`paragraph-${index}`}>{renderInlineMarkdown(trimmed.replace(/^#{1,6}\s*/, ""))}</p>);
     }
   });
   flushList();
@@ -243,13 +247,18 @@ export default function FolioApp() {
 
   // Grounded Chat Q&A states
   const [chatInput, setInput] = useState("");
-  const [chatMessages, setMessages] = useState<ChatMessage[]>([
+  const initialChatMessages: ChatMessage[] = [
     {
       role: "assistant",
       text: "Hi — ask me to explain, compare, summarise, draft, or reason through anything in your documents. I’ll show the sources I used and say when the evidence is uncertain.",
     },
-  ]);
+  ];
+  const [activeChatDocumentId, setActiveChatDocumentId] = useState<string | null>(null);
+  const [chatMessagesByDocument, setChatMessagesByDocument] = useState<Record<string, ChatMessage[]>>({ all: initialChatMessages });
   const [aiTyping, setAiTyping] = useState(false);
+
+  const chatKey = activeChatDocumentId || "all";
+  const chatMessages = chatMessagesByDocument[chatKey] || initialChatMessages;
 
   // Toasts (supports multiple stacked toasts)
   const [toast, setToast] = useState("");
@@ -488,14 +497,15 @@ export default function FolioApp() {
   // AI QA Grounded responses log
   const handleSendChat = async (question = chatInput) => {
     if (!question.trim() || aiTyping) return;
+    const conversationKey = activeChatDocumentId || "all";
     const requestHistory = chatMessages.slice(-10).map(({ role, text }) => ({ role, text }));
-    setMessages((prev) => [...prev, { role: "user", text: question.trim() }, { role: "assistant", text: "" }]);
+    setChatMessagesByDocument((prev) => ({ ...prev, [conversationKey]: [...(prev[conversationKey] || initialChatMessages), { role: "user", text: question.trim() }, { role: "assistant", text: "" }] }));
     setInput("");
     setAiTyping(true);
 
     try {
       const response = await fetch(`${API_URL}/v1/ai/ask`, { method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ question, history: requestHistory }) });
+        headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ question, history: requestHistory, documentId: activeChatDocumentId }) });
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.message || "The assistant could not answer right now");
@@ -513,16 +523,16 @@ export default function FolioApp() {
           if (event.type === "delta" && event.text) {
             responseText += event.text;
             setAiTyping(false);
-            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, text: message.text + event.text } : message));
+            setChatMessagesByDocument((prev) => ({ ...prev, [conversationKey]: prev[conversationKey].map((message, index) => index === prev[conversationKey].length - 1 ? { ...message, text: message.text + event.text } : message) }));
           } else if (event.type === "replace") {
             responseText = event.text || "I could not complete that answer.";
-            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, text: responseText } : message));
+            setChatMessagesByDocument((prev) => ({ ...prev, [conversationKey]: prev[conversationKey].map((message, index) => index === prev[conversationKey].length - 1 ? { ...message, text: responseText } : message) }));
           } else if (event.type === "done") {
             const citations = (event.citations || []).map((citation) => ({ doc: citation.title, detail: `Page ${citation.page}` }));
             matchedDoc = citations[0]?.doc;
             matchedPage = event.citations?.[0]?.page;
-            setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, sourceDoc: matchedDoc, sourcePage: matchedPage, sources: citations,
-              complianceConfidence: event.compliance?.confidence, complianceLogic: event.compliance?.logic } : message));
+            setChatMessagesByDocument((prev) => ({ ...prev, [conversationKey]: prev[conversationKey].map((message, index) => index === prev[conversationKey].length - 1 ? { ...message, sourceDoc: matchedDoc, sourcePage: matchedPage, sources: citations,
+              complianceConfidence: event.compliance?.confidence, complianceLogic: event.compliance?.logic } : message) }));
           }
         }
         if (done) break;
@@ -542,7 +552,7 @@ export default function FolioApp() {
       setAuditLogs((prev) => [newLog, ...prev]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "The assistant could not answer right now";
-      setMessages((prev) => prev.map((item, index) => index === prev.length - 1 && item.role === "assistant" ? { ...item, text: message } : item));
+      setChatMessagesByDocument((prev) => ({ ...prev, [conversationKey]: prev[conversationKey].map((item, index) => index === prev[conversationKey].length - 1 && item.role === "assistant" ? { ...item, text: message } : item) }));
       setToast(message); setToastType("error");
     } finally { setAiTyping(false); }
   };
@@ -1587,6 +1597,17 @@ export default function FolioApp() {
                 </div>
               </div>
 
+              <div className="chat-document-switcher" aria-label="Choose a document chat">
+                <button className={!activeChatDocumentId ? "active" : ""} onClick={() => setActiveChatDocumentId(null)}>
+                  <MessageSquareText size={13} /> All documents
+                </button>
+                {documents.map((doc) => (
+                  <button key={doc.id} className={activeChatDocumentId === String(doc.id) ? "active" : ""} onClick={() => setActiveChatDocumentId(String(doc.id))}>
+                    <FileText size={13} /> {doc.title}
+                  </button>
+                ))}
+              </div>
+
               <div className="chat">
                 <div className="chat-log" ref={chatLogRef}>
                   {chatMessages.map((msg, idx) => msg.text ? (
@@ -1646,7 +1667,7 @@ export default function FolioApp() {
                 </div>
 
                 {chatMessages.length === 1 && <div className="suggestions">
-                  {["Summarise my documents", "What needs my attention?", "Compare the conditions", "Draft my next steps"].map((suggestion) => (
+                  {(activeChatDocumentId ? ["Summarise this document", "What needs my attention here?", "Explain the key conditions", "Draft my next steps"] : ["Summarise my documents", "What needs my attention?", "Compare the conditions", "Draft my next steps"]).map((suggestion) => (
                     <button key={suggestion} onClick={() => handleSendChat(suggestion)}>
                       {suggestion}
                     </button>
