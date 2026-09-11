@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   AlertTriangle,
@@ -86,6 +87,57 @@ type ChatMessage = {
   complianceConfidence?: number;
   complianceLogic?: string;
 };
+
+function renderInlineMarkdown(value: string): ReactNode[] {
+  const parts = value.split(/(\*\*[^*]+\*\*|\[SOURCE:\d+\])/g);
+  return parts.filter(Boolean).map((part, index) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (/^\[SOURCE:\d+\]$/.test(part)) {
+      return <span className="inline-source-citation" key={index}>{part}</span>;
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
+function renderAssistantMarkdown(text: string): ReactNode[] {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const rendered: ReactNode[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    rendered.push(
+      <ul className="message-list" key={`list-${rendered.length}`}>
+        {listItems.map((item, index) => <li key={index}>{renderInlineMarkdown(item)}</li>)}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) { flushList(); return; }
+    const heading = trimmed.match(/^#{1,4}\s+(.+)$/);
+    const bullet = trimmed.match(/^(?:[-*]|\d+\.)\s+(.+)$/);
+    if (bullet) { listItems.push(bullet[1]); return; }
+    flushList();
+    if (heading) {
+      const level = Math.min(trimmed.match(/^#+/)?.[0].length || 3, 4);
+      const content = renderInlineMarkdown(heading[1]);
+      const headingProps = { className: "message-heading", key: `heading-${index}` };
+      if (level === 1) rendered.push(<h1 {...headingProps}>{content}</h1>);
+      else if (level === 2) rendered.push(<h2 {...headingProps}>{content}</h2>);
+      else if (level === 3) rendered.push(<h3 {...headingProps}>{content}</h3>);
+      else rendered.push(<h4 {...headingProps}>{content}</h4>);
+    } else {
+      rendered.push(<p className="message-paragraph" key={`paragraph-${index}`}>{renderInlineMarkdown(trimmed)}</p>);
+    }
+  });
+  flushList();
+  return rendered;
+}
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 
 const typeStyles: Record<DocType, { label: string; color: string; tint: string; border: string }> = {
@@ -1543,7 +1595,7 @@ export default function FolioApp() {
                         <span className="ai-avatar"><Sparkles size={13} /></span>
                       )}
                       <div>
-                        <p>{msg.text}</p>
+                        {msg.role === "assistant" ? renderAssistantMarkdown(msg.text) : <p className="message-paragraph">{msg.text}</p>}
                         {msg.sources && msg.sources.length > 0 && (
                           <div className="chat-citations-wrapper">
                             <strong>Source Passages:</strong>

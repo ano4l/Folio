@@ -1415,11 +1415,51 @@ button {
   border: none;
 }
 
-.message p {
+.message p,
+.message-paragraph {
   color: inherit;
   font-size: 13.5px;
   line-height: 1.55;
-  white-space: pre-wrap;
+  margin: 0 0 10px;
+}
+
+.message > div > :last-child {
+  margin-bottom: 0;
+}
+
+.message-heading {
+  color: inherit;
+  line-height: 1.25;
+  margin: 4px 0 8px;
+  font-family: var(--display);
+  letter-spacing: -0.01em;
+}
+
+.message h1.message-heading { font-size: 18px; }
+.message h2.message-heading { font-size: 16px; }
+.message h3.message-heading,
+.message h4.message-heading { font-size: 14px; }
+
+.message-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  color: inherit;
+}
+
+.message-list li {
+  padding-left: 3px;
+  margin: 4px 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.inline-source-citation {
+  display: inline-block;
+  margin-left: 3px;
+  color: var(--teal-hover);
+  font-size: 0.8em;
+  font-weight: 700;
+  vertical-align: 0.08em;
 }
 
 .chat-citations-wrapper {
