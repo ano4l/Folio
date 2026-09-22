@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock your Folio vault.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Use the microphone to ask Folio questions by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Use speech recognition to turn your voice questions into text.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
