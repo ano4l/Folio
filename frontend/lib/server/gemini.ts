@@ -25,9 +25,16 @@ export async function generateGeminiText(options: GenerateOptions) {
   const generationConfig = {
     temperature: options.temperature,
     maxOutputTokens: options.maxOutputTokens,
+    // Gemini 3 models reason before answering. LOW prevents short document
+    // summaries from spending their complete output allowance on thinking.
+    thinkingConfig: { thinkingLevel: "LOW" },
     ...(options.responseJsonSchema ? {
-      responseMimeType: "application/json",
-      responseJsonSchema: options.responseJsonSchema,
+      responseFormat: {
+        text: {
+          mimeType: "APPLICATION_JSON",
+          schema: options.responseJsonSchema,
+        },
+      },
     } : {}),
   };
   const response = await fetch(`${GEMINI_API_ROOT}/${encodeURIComponent(model)}:generateContent`, {
@@ -52,6 +59,9 @@ export async function generateGeminiText(options: GenerateOptions) {
 
   const json = await response.json() as GeminiResponse;
   const text = json.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim() || "";
-  if (!text) throw new Error("Gemini returned no usable response");
+  if (!text) {
+    const finishReason = json.candidates?.[0]?.finishReason;
+    throw new Error(`Gemini returned no usable response${finishReason ? ` (${finishReason})` : ""}`);
+  }
   return { text, model: json.modelVersion || model };
 }
