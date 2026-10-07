@@ -1,5 +1,14 @@
 const STOP_WORDS = new Set(["the","a","an","and","or","is","are","was","were","to","of","in","on","for","my","me","i","it","that","this","what","when","how","can","you","please","tell","about"]);
-export type GroundingDocument = { id: string; title: string; page_number: number; content: string; confidence?: number | null };
+import { decodePages } from "./document-pages";
+export type GroundingDocument = { id: string; title: string; page_number: number | null; content: string; confidence?: number | null };
+
+export function expandDocumentPages(documents: GroundingDocument[]): GroundingDocument[] {
+  return documents.flatMap<GroundingDocument>(document => {
+    const pages = decodePages(document.content);
+    return pages ? pages.filter(page => page.text.trim()).map(page => ({ ...document, page_number: page.page, content: page.text }))
+      : [{ ...document, page_number: null }]; // Legacy flattened text cannot prove a page number.
+  });
+}
 
 export function retrieveDocuments(question: string, conversation: string, documents: GroundingDocument[]) {
   const allTerms = terms(`${question} ${conversation}`);

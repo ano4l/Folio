@@ -1,8 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../services/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/activity_gauge.dart';
 import '../widgets/doc_type_badge.dart';
 import '../widgets/glass_container.dart';
 
@@ -13,189 +16,465 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final ready =
+        state.documents.where((item) => item.status == 'Ready').length;
+    final attention =
+        state.documents.where((item) => item.status == 'Error').length;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Welcome back, Alex', style: Theme.of(context).textTheme.headlineLarge),
-          const SizedBox(height: 4),
-          Text('Encrypted document vault & AI retrieval assistant active.',
-              style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 24),
-
-          // Glass Stats Row
-          Row(children: [
-            _StatCard(
-              icon: CupertinoIcons.doc_text_fill,
-              label: 'Documents',
-              value: '',
-              color: AppColors.teal,
-              bg: AppColors.tealLight,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760;
+        final horizontal = wide ? 32.0 : 20.0;
+        return RefreshIndicator(
+          onRefresh: state.refreshDocuments,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-            const SizedBox(width: 10),
-            _StatCard(
-              icon: CupertinoIcons.clock_fill,
-              label: 'Pending',
-              value: '',
-              color: AppColors.warning,
-              bg: AppColors.warningLight,
-            ),
-            const SizedBox(width: 10),
-            _StatCard(
-              icon: CupertinoIcons.shield_fill,
-              label: 'Audit events',
-              value: '',
-              color: AppColors.navy,
-              bg: AppColors.navyLight,
-            ),
-          ]),
-          const SizedBox(height: 28),
-
-          // Quick AI Prompt Banner
-          _SectionTitle('Ask your documents'),
-          const SizedBox(height: 10),
-          GlassContainer(
-            padding: EdgeInsets.zero,
-            onTap: onAskTap,
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF007AFF),
-                    Color(0xFF0A84FF),
-                    Color(0xFF5856D6),
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 120),
+                sliver: SliverList.list(
+                  children: [
+                    _Header(name: state.firstName),
+                    const SizedBox(height: 24),
+                    _VaultOverview(
+                      documents: state.documents.length,
+                      ready: ready,
+                      attention: attention,
+                      pending: state.pendingCount,
+                      auditEvents: state.auditLogs.length,
+                      wide: wide,
+                    ),
+                    const SizedBox(height: 28),
+                    _AskCard(onTap: onAskTap),
+                    const SizedBox(height: 28),
+                    if (wide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _RecentDocuments(state: state)),
+                          const SizedBox(width: 20),
+                          Expanded(child: _Deadlines(state: state)),
+                        ],
+                      )
+                    else ...[
+                      _RecentDocuments(state: state),
+                      const SizedBox(height: 28),
+                      _Deadlines(state: state),
+                    ],
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(CupertinoIcons.sparkles, color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Ask Folio AI', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                        SizedBox(height: 2),
-                        Text('Grounded search across all vault files…', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  const Icon(CupertinoIcons.chevron_right, color: Colors.white70, size: 16),
-                ],
-              ),
-            ),
+            ],
           ),
-          const SizedBox(height: 28),
+        );
+      },
+    );
+  }
+}
 
-          // Recent Documents Grouped Section
-          _SectionTitle('Recent documents'),
-          const SizedBox(height: 10),
-          GlassContainer(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ...state.documents.take(3).toList().asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final doc = entry.value;
-                  return Column(
-                    children: [
-                      ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.tealLight,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(CupertinoIcons.doc_text, color: AppColors.teal, size: 22),
-                        ),
-                        title: Text(doc.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text(' ·  pgs · % OCR',
-                            style: const TextStyle(fontSize: 12, color: AppColors.slate)),
-                        trailing: DocTypeBadge(type: doc.type),
-                      ),
-                      if (idx < 2) const Divider(height: 1, indent: 64, endIndent: 16, color: AppColors.line),
-                    ],
-                  );
-                }),
-              ],
-            ),
+class _Header extends StatelessWidget {
+  final String name;
+  const _Header({required this.name});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Welcome back, $name',
+        style: Theme.of(context).textTheme.headlineLarge,
+      ),
+      const SizedBox(height: 6),
+      const Row(
+        children: [
+          Icon(
+            CupertinoIcons.lock_shield_fill,
+            size: 15,
+            color: AppColors.success,
           ),
-
-          const SizedBox(height: 28),
-
-          // Urgent Deadlines Grouped Section
-          _SectionTitle('Urgent deadlines'),
-          const SizedBox(height: 10),
-          GlassContainer(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ...state.deadlines.where((d) => !d.completed).toList().asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final d = entry.value;
-                  return Column(
-                    children: [
-                      ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: d.severity == 'high'
-                                ? const Color(0xFFFFEBEA)
-                                : d.severity == 'medium'
-                                    ? AppColors.warningLight
-                                    : AppColors.tealLight,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            CupertinoIcons.calendar,
-                            color: d.severity == 'high'
-                                ? AppColors.danger
-                                : d.severity == 'medium'
-                                    ? AppColors.warning
-                                    : AppColors.teal,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(d.action, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text(' · due ', style: const TextStyle(fontSize: 12, color: AppColors.slate)),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.warningLight,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(' days',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.warning)),
-                        ),
-                      ),
-                      if (idx < state.deadlines.where((d) => !d.completed).length - 1)
-                        const Divider(height: 1, indent: 64, endIndent: 16, color: AppColors.line),
-                    ],
-                  );
-                }),
-              ],
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Your encrypted document vault is protected and ready.',
+              style: TextStyle(fontSize: 13, color: AppColors.slate),
             ),
           ),
         ],
       ),
+    ],
+  );
+}
+
+class _VaultOverview extends StatelessWidget {
+  final int documents;
+  final int ready;
+  final int attention;
+  final int pending;
+  final int auditEvents;
+  final bool wide;
+
+  const _VaultOverview({
+    required this.documents,
+    required this.ready,
+    required this.attention,
+    required this.pending,
+    required this.auditEvents,
+    required this.wide,
+  });
+
+  @override
+  Widget build(BuildContext context) => GlassContainer(
+    padding: const EdgeInsets.all(20),
+    child:
+        wide
+            ? Row(
+              children: [
+                ActivityGauge(
+                  documents: documents,
+                  ready: ready,
+                  attention: attention,
+                ),
+                const SizedBox(width: 28),
+                Expanded(
+                  child: _Metrics(
+                    documents: documents,
+                    pending: pending,
+                    auditEvents: auditEvents,
+                  ),
+                ),
+              ],
+            )
+            : Column(
+              children: [
+                ActivityGauge(
+                  documents: documents,
+                  ready: ready,
+                  attention: attention,
+                ),
+                const SizedBox(height: 16),
+                _Metrics(
+                  documents: documents,
+                  pending: pending,
+                  auditEvents: auditEvents,
+                ),
+              ],
+            ),
+  );
+}
+
+class _Metrics extends StatelessWidget {
+  final int documents;
+  final int pending;
+  final int auditEvents;
+  const _Metrics({
+    required this.documents,
+    required this.pending,
+    required this.auditEvents,
+  });
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _Metric(
+          value: '$documents',
+          label: 'Documents',
+          icon: CupertinoIcons.doc_text_fill,
+          color: AppColors.teal,
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _Metric(
+          value: '$pending',
+          label: 'Pending',
+          icon: CupertinoIcons.clock_fill,
+          color: AppColors.warning,
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _Metric(
+          value: '$auditEvents',
+          label: 'Activity',
+          icon: CupertinoIcons.shield_fill,
+          color: AppColors.navy,
+        ),
+      ),
+    ],
+  );
+}
+
+class _Metric extends StatelessWidget {
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _Metric({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '$label: $value',
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 19),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.slate,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AskCard extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _AskCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Ask Folio AI about your documents',
+    child: GlassContainer(
+      padding: EdgeInsets.zero,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap?.call();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0E7C74), Color(0xFF116B68), Color(0xFF33455E)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          children: [
+            _SparkleIcon(),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ask Folio',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Get an answer grounded in your vault.',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            Icon(CupertinoIcons.arrow_up_right, color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _SparkleIcon extends StatelessWidget {
+  const _SparkleIcon();
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .15),
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(CupertinoIcons.sparkles, color: Colors.white, size: 21),
+  );
+}
+
+class _RecentDocuments extends StatelessWidget {
+  final AppState state;
+  const _RecentDocuments({required this.state});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const _SectionTitle('Recent documents'),
+      const SizedBox(height: 12),
+      if (state.documentsLoading)
+        const _EmptyCard(
+          icon: CupertinoIcons.arrow_2_circlepath,
+          title: 'Refreshing your vault',
+          detail: 'Securely loading your documents…',
+        )
+      else if (state.documents.isEmpty)
+        const _EmptyCard(
+          icon: Icons.upload_file_rounded,
+          title: 'Your vault is ready',
+          detail: 'Upload your first document from the Documents tab.',
+        )
+      else
+        GlassContainer(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children:
+                state.documents.take(3).toList().asMap().entries.map((entry) {
+                  final doc = entry.value;
+                  return Column(
+                    children: [
+                      Semantics(
+                        button: true,
+                        label: 'Open ${doc.title}',
+                        child: ListTile(
+                          minTileHeight: 68,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 5,
+                          ),
+                          leading: const _DocIcon(),
+                          title: Text(
+                            doc.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${doc.date} · ${doc.pages} pages · ${doc.status}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: DocTypeBadge(type: doc.type),
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            state.openDocument(doc);
+                          },
+                        ),
+                      ),
+                      if (entry.key < state.documents.take(3).length - 1)
+                        const Divider(height: 1, indent: 64, endIndent: 16),
+                    ],
+                  );
+                }).toList(),
+          ),
+        ),
+    ],
+  );
+}
+
+class _Deadlines extends StatelessWidget {
+  final AppState state;
+  const _Deadlines({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = state.deadlines.where((item) => !item.completed).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Next actions'),
+        const SizedBox(height: 12),
+        if (pending.isEmpty)
+          const _EmptyCard(
+            icon: CupertinoIcons.check_mark_circled_solid,
+            title: 'Nothing urgent',
+            detail: 'New obligations found in your documents will appear here.',
+          )
+        else
+          GlassContainer(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children:
+                  pending
+                      .take(3)
+                      .map(
+                        (deadline) => ListTile(
+                          minTileHeight: 68,
+                          leading: Icon(
+                            CupertinoIcons.calendar,
+                            color:
+                                deadline.severity == 'high'
+                                    ? AppColors.danger
+                                    : AppColors.warning,
+                          ),
+                          title: Text(
+                            deadline.action,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text('${deadline.doc} · ${deadline.due}'),
+                          trailing: Text(
+                            '${deadline.days}d',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ),
+      ],
     );
   }
+}
+
+class _DocIcon extends StatelessWidget {
+  const _DocIcon();
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: AppColors.tealLight,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: const Icon(
+      CupertinoIcons.doc_text_fill,
+      color: AppColors.teal,
+      size: 21,
+    ),
+  );
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -206,34 +485,36 @@ class _SectionTitle extends StatelessWidget {
       Text(text, style: Theme.of(context).textTheme.headlineSmall);
 }
 
-class _StatCard extends StatelessWidget {
+class _EmptyCard extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final Color bg;
-  const _StatCard({required this.icon, required this.label, required this.value, required this.color, required this.bg});
-
+  final String title;
+  final String detail;
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.detail,
+  });
   @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GlassContainer(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, size: 18, color: color),
-            ),
-            const SizedBox(height: 10),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.ink, letterSpacing: -0.5)),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.slate)),
-          ],
+  Widget build(BuildContext context) => GlassContainer(
+    padding: const EdgeInsets.all(20),
+    child: Row(
+      children: [
+        Icon(icon, color: AppColors.teal, size: 28),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                detail,
+                style: const TextStyle(fontSize: 12, color: AppColors.slate),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }

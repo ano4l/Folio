@@ -3,48 +3,55 @@ import '../theme/app_theme.dart';
 
 class FolioLogo extends StatelessWidget {
   final double size;
-  const FolioLogo({super.key, this.size = 40});
-
+  final bool light;
+  final bool showTagline;
+  const FolioLogo({
+    super.key,
+    this.size = 40,
+    this.light = false,
+    this.showTagline = false,
+  });
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF0A84FF),
-                Color(0xFF007AFF),
-                Color(0xFF5856D6),
-              ],
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.teal,
+          borderRadius: BorderRadius.circular(size * .22),
+        ),
+        child: Icon(
+          Icons.folder_rounded,
+          color: Colors.white,
+          size: size * .55,
+        ),
+      ),
+      SizedBox(width: size * .25),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Folio',
+            style: AppTheme.display(
+              size: size * .54,
+              color: light ? Colors.white : AppColors.ink,
             ),
-            borderRadius: BorderRadius.circular(size * 0.28), // Apple continuous squircle feel
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF007AFF).withValues(alpha: 0.3),
-                blurRadius: size * 0.3,
-                offset: Offset(0, size * 0.1),
+          ),
+          if (showTagline)
+            Text(
+              'STUDENT FINANCE, SIMPLIFIED',
+              style: TextStyle(
+                fontSize: size * .19,
+                letterSpacing: 1.05,
+                fontWeight: FontWeight.w700,
+                color: light ? Colors.white60 : AppColors.slate,
               ),
-            ],
-          ),
-          child: Icon(Icons.description_rounded, color: Colors.white, size: size * 0.55),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'Folio',
-          style: TextStyle(
-            fontSize: size * 0.55,
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink,
-            letterSpacing: -0.6,
-          ),
-        ),
-      ],
-    );
-  }
+            ),
+        ],
+      ),
+    ],
+  );
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import { startAuthentication, startRegistration, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { createClient } from "@supabase/supabase-js";
 import {
   AlertTriangle,
@@ -819,10 +820,38 @@ export default function FolioApp() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Passkeys are a later provider-backed feature; never bypass server authentication.
   const handleBiometricLogin = () => {
-    setToast("Passkey sign-in will be enabled after the server-backed WebAuthn flow is added.");
-    setToastType("info");
+    void (async () => {
+      if (!browserSupportsWebAuthn()) { setAuthError("Passkey sign-in is not supported in this browser."); return; }
+      setBiometricScanning(true); setAuthError("");
+      try {
+        const optionsResponse = await fetch(`${API_URL}/v1/auth/passkey`, { method: "POST", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ action: "login-options", email: emailInput }) });
+        const options = await optionsResponse.json();
+        if (!optionsResponse.ok) throw new Error(options.message || "Unable to start passkey sign-in");
+        const assertion = await startAuthentication({ optionsJSON: options.options });
+        const verifyResponse = await fetch(`${API_URL}/v1/auth/passkey`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ action: "login-verify", challengeId: options.challengeId, response: assertion }) });
+        const user = await verifyResponse.json();
+        if (!verifyResponse.ok) throw new Error(user.message || "Passkey verification failed");
+        setAuthUser(user); setAuthStep("authenticated"); setBiometricDone(true); setToast("Passkey verified. Welcome back.");
+      } catch (error) { setAuthError(error instanceof Error ? error.message : "Passkey sign-in failed"); }
+      finally { setBiometricScanning(false); }
+    })();
+  };
+
+  const handleRegisterPasskey = () => {
+    void (async () => {
+      if (!browserSupportsWebAuthn()) { setToast("Passkeys are not supported in this browser."); setToastType("error"); return; }
+      try {
+        const optionsResponse = await fetch(`${API_URL}/v1/auth/passkey`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ action: "register-options" }) });
+        const options = await optionsResponse.json();
+        if (!optionsResponse.ok) throw new Error(options.message || "Unable to start passkey setup");
+        const registration = await startRegistration({ optionsJSON: options.options });
+        const verifyResponse = await fetch(`${API_URL}/v1/auth/passkey`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" }, body: JSON.stringify({ action: "register-verify", challengeId: options.challengeId, response: registration }) });
+        const result = await verifyResponse.json();
+        if (!verifyResponse.ok) throw new Error(result.message || "Unable to save passkey");
+        setToast("Passkey added. You can use it next time you sign in."); setToastType("success");
+      } catch (error) { setToast(error instanceof Error ? error.message : "Passkey setup failed"); setToastType("error"); }
+    })();
   };
 
   // Calendar helpers
@@ -942,7 +971,7 @@ export default function FolioApp() {
             ) : (
               <>
                 <Fingerprint size={20} style={{ color: "var(--teal)" }} />
-                <span>Passkey sign-in (coming after account setup)</span>
+                <span>Sign in with passkey</span>
               </>
             )}
           </button>
@@ -1849,10 +1878,10 @@ export default function FolioApp() {
 
                     <div className="setting-control-row">
                       <div>
-                        <b>Native Biometric Lock</b>
-                        <small>Available when Folio&apos;s native passkey flow is connected.</small>
+                        <b>Passkey sign-in</b>
+                        <small>Use Face ID, Touch ID, Windows Hello, or a security key to sign in.</small>
                       </div>
-                      <button aria-label="Toggle native biometric lock" aria-pressed={biometricEnabled} className={`toggle ${biometricEnabled ? "on" : ""}`} onClick={() => { setBiometricEnabled(!biometricEnabled); setToast(biometricEnabled ? "Biometric lock disabled." : "Biometric lock preference enabled."); }}><span /></button>
+                      <button className="secondary" onClick={handleRegisterPasskey}><Fingerprint size={14} /> Add passkey</button>
                     </div>
 
                     <div className="setting-control-row">

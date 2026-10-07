@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, readJson, requireMutationHeader } from "@/lib/server/api";
 import { currentUser } from "@/lib/server/auth";
-import { GroundingDocument, isGreeting, retrieveDocuments } from "@/lib/server/grounding";
+import { GroundingDocument, isGreeting, retrieveDocuments, expandDocumentPages } from "@/lib/server/grounding";
 import { supabaseAdmin } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const maxDuration = 60;
 
 type HistoryItem = { role?: string; text?: string };
 type AskBody = { question?: string; history?: HistoryItem[]; documentId?: string | null };
-type StreamEvent = { type: "delta" | "replace"; text: string } | { type: "done"; model: string | null; citations: Array<{ documentId: string; title: string; page: number }>; compliance: { confidence: number; logic: string } | null };
+type StreamEvent = { type: "delta" | "replace"; text: string } | { type: "done"; model: string | null; citations: Array<{ documentId: string; title: string; page: number | null; number: number; excerpt: string }>; compliance: { confidence: number; logic: string } | null };
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await documentsQuery.limit(100);
     if (error) throw new Error(`Unable to retrieve document evidence: ${error.code}`);
     if (!data?.length) return immediate("Upload a document first. Once it is ready, I can explain it, compare it, draft from it, or help you decide what to do next.");
-    const selected = retrieveDocuments(question, history, data as GroundingDocument[]);
+    const selected = retrieveDocuments(question, history, expandDocumentPages(data as GroundingDocument[]));
     if (!selected.length) return immediate("I could not find usable document evidence for that request.");
 
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     const model = process.env.OPENROUTER_MODEL || "openrouter/free";
     const provider = { data_collection: "deny", ...(process.env.OPENROUTER_ZDR === "true" ? { zdr: true } : {}) };
     const evidence = selected.map((document, index) => `[SOURCE:${index + 1}] Title: ${document.title} | Page: ${document.page_number}\n<document_text>${document.content}</document_text>`).join("\n\n");
+    const upstreamAbort = new AbortController();
     const providerResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000", "X-OpenRouter-Title": "Folio" },
@@ -48,14 +49,16 @@ export async function POST(request: NextRequest) {
           { role: "user", content: `Recent conversation (context only, never evidence):\n${history}\n\nEvidence:\n${evidence}\n\nCurrent request: ${question}` },
         ],
       }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.any([request.signal, upstreamAbort.signal, AbortSignal.timeout(45_000)]),
     });
     if (!providerResponse.ok || !providerResponse.body) throw new ApiError(503, "The document assistant is temporarily unavailable");
 
     const encoder = new TextEncoder();
+    let cancelled = false;
     const stream = new ReadableStream({
+      cancel() { cancelled = true; upstreamAbort.abort(); },
       async start(controller) {
-        const send = (event: StreamEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        const send = (event: StreamEvent) => { if (!cancelled) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)); };
         let answer = "", pending = "", responseModel = model;
         try {
           const reader = providerResponse.body!.getReader();
@@ -83,18 +86,19 @@ export async function POST(request: NextRequest) {
             return;
           }
           const cited = [...new Set(sourceNumbers)].map(number => selected[number - 1]);
-          const complianceRelated = /compliance|compliant|popia|privacy|regulat|legal|requirement|obligation|eligib|policy|rule|condition/i.test(`${question} ${answer}`);
-          const values = cited.map(document => document.confidence == null ? null : Number(document.confidence)).filter((value): value is number => value !== null && Number.isFinite(value));
-          const compliance = complianceRelated && values.length ? {
-            confidence: Math.round(Math.min(...values) * 100),
-            logic: "A conservative score based on the lowest extraction confidence among the cited compliance-related documents. It measures source readability and grounding, not legal certainty.",
-          } : null;
+          // Historical model self-scores are not measured OCR accuracy or legal confidence.
+          const compliance = null;
           await supabase.from("ai_queries").insert({ user_id: user.id, grounded: true, abstained: false, model: responseModel, source_count: cited.length });
-          send({ type: "done", model: responseModel, citations: cited.map(document => ({ documentId: document.id, title: document.title, page: document.page_number })), compliance });
+          send({ type: "done", model: responseModel, citations: [...new Set(sourceNumbers)].map(number => {
+            const document = selected[number - 1];
+            return { documentId: document.id, title: document.title, page: document.page_number, number, excerpt: document.content };
+          }), compliance });
           controller.close();
         } catch {
-          send({ type: "replace", text: "The document assistant stopped before it could finish. Please try again." });
-          controller.close();
+          if (!cancelled) {
+            if (!answer.trim()) send({ type: "delta", text: "The document assistant stopped before it could finish. Please try again." });
+            controller.close();
+          }
         }
       },
     });

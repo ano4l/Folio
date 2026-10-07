@@ -1,6 +1,6 @@
 # Folio on Vercel and Supabase
 
-This is the active pilot deployment path. Vercel runs the Next.js web app and server routes; Supabase supplies PostgreSQL and the private `folio-documents` bucket. Spring Boot and AWS files remain for a later migration.
+This is the active pilot deployment path. Vercel runs the Next.js web app and server routes; Supabase supplies PostgreSQL and the private `folio-documents` bucket. The unused Spring Boot/AWS scaffold has been removed from the working repository.
 
 ## 1. Create Supabase resources
 

@@ -7,16 +7,25 @@ class DocTypeBadge extends StatelessWidget {
   const DocTypeBadge({super.key, required this.type});
 
   static const Map<String, _Style> _styles = {
-    'Funding Award Letter': _Style('Funding', AppColors.warning, AppColors.warningLight),
+    'Funding Award Letter': _Style(
+      'Funding',
+      AppColors.warning,
+      AppColors.warningLight,
+    ),
     'Bursary Agreement': _Style('Bursary', AppColors.teal, AppColors.tealLight),
     'Fee Statement': _Style('Fees', AppColors.navy, AppColors.navyLight),
     'Bank Letter': _Style('Bank', AppColors.purple, AppColors.purpleLight),
-    'Appeal Correspondence': _Style('Appeal', AppColors.danger, Color(0xFFFFEBEA)),
+    'Appeal Correspondence': _Style(
+      'Appeal',
+      AppColors.danger,
+      Color(0xFFFFEBEA),
+    ),
   };
 
   @override
   Widget build(BuildContext context) {
-    final s = _styles[type] ?? const _Style('Doc', AppColors.slate, AppColors.paper);
+    final s =
+        _styles[type] ?? const _Style('Doc', AppColors.slate, AppColors.paper);
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(

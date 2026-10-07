@@ -1,28 +1,23 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import 'folio_motion.dart';
 
-/// Reusable Apple-style Liquid Glass Container widget with frosted blur,
-/// specular hair-line border, and subtle ambient drop shadow.
-class GlassContainer extends StatelessWidget {
+class GlassContainer extends StatefulWidget {
   final Widget child;
-  final double blur;
-  final double opacity;
+  final double blur, opacity;
   final Color? tint;
   final BorderRadius? borderRadius;
-  final EdgeInsetsGeometry? padding;
-  final EdgeInsetsGeometry? margin;
+  final EdgeInsetsGeometry? padding, margin;
   final Border? border;
   final VoidCallback? onTap;
   final List<BoxShadow>? boxShadow;
   final AlignmentGeometry? alignment;
-  final double? width;
-  final double? height;
-
+  final double? width, height;
   const GlassContainer({
     super.key,
     required this.child,
-    this.blur = 20.0,
-    this.opacity = 0.75,
+    this.blur = 0,
+    this.opacity = 1,
     this.tint,
     this.borderRadius,
     this.padding,
@@ -34,95 +29,54 @@ class GlassContainer extends StatelessWidget {
     this.width,
     this.height,
   });
+  @override
+  State<GlassContainer> createState() => _GlassContainerState();
+}
 
+class _GlassContainerState extends State<GlassContainer> {
+  bool _pressed = false;
   @override
   Widget build(BuildContext context) {
-    final effectiveRadius = borderRadius ?? BorderRadius.circular(20);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final defaultBgColor = tint != null
-        ? tint!.withValues(alpha: opacity)
-        : (isDark
-            ? const Color(0x3D1C1C1E)
-            : Colors.white.withValues(alpha: opacity));
-
-    final defaultBorder = border ??
-        Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.12)
-              : Colors.white.withValues(alpha: 0.8),
-          width: 1.0,
-        );
-
-    final defaultShadow = boxShadow ??
-        [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-            spreadRadius: -2,
-          ),
-        ];
-
-    Widget content = Container(
-      width: width,
-      height: height,
-      padding: padding ?? const EdgeInsets.all(16),
-      alignment: alignment,
-      decoration: BoxDecoration(
-        color: defaultBgColor,
-        borderRadius: effectiveRadius,
-        border: defaultBorder,
-        boxShadow: defaultShadow,
-      ),
-      child: child,
+    final radius = widget.borderRadius ?? BorderRadius.circular(20);
+    final decoration = BoxDecoration(
+      color: widget.tint ?? AppColors.card,
+      borderRadius: radius,
+      border: widget.border ?? Border.all(color: AppColors.line),
+      boxShadow: widget.boxShadow ?? const [],
     );
-
-    content = ClipRRect(
-      borderRadius: effectiveRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: content,
-      ),
+    final content = Container(
+      width: widget.width,
+      height: widget.height,
+      padding: widget.padding ?? const EdgeInsets.all(16),
+      alignment: widget.alignment,
+      child: widget.child,
     );
-
-    if (margin != null) {
-      content = Padding(padding: margin!, child: content);
-    }
-
-    if (onTap != null) {
-      return Container(
-        margin: margin,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: effectiveRadius,
-          child: InkWell(
-            borderRadius: effectiveRadius,
-            onTap: onTap,
-            child: ClipRRect(
-              borderRadius: effectiveRadius,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                child: Container(
-                  width: width,
-                  height: height,
-                  padding: padding ?? const EdgeInsets.all(16),
-                  alignment: alignment,
-                  decoration: BoxDecoration(
-                    color: defaultBgColor,
-                    borderRadius: effectiveRadius,
-                    border: defaultBorder,
-                    boxShadow: defaultShadow,
-                  ),
-                  child: child,
+    final surface =
+        widget.onTap == null
+            ? DecoratedBox(decoration: decoration, child: content)
+            : Material(
+              color: Colors.transparent,
+              borderRadius: radius,
+              clipBehavior: Clip.antiAlias,
+              child: Ink(
+                decoration: decoration,
+                child: InkWell(
+                  borderRadius: radius,
+                  onTap: widget.onTap,
+                  onHighlightChanged:
+                      (pressed) => setState(() => _pressed = pressed),
+                  child: content,
                 ),
               ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return content;
+            );
+    final wrapped = AnimatedScale(
+      scale: _pressed && !MediaQuery.disableAnimationsOf(context) ? .985 : 1,
+      duration: FolioMotion.duration(context, 120),
+      curve: FolioMotion.curve,
+      child: surface,
+    );
+    return widget.margin == null
+        ? wrapped
+        : Padding(padding: widget.margin!, child: wrapped);
   }
 }

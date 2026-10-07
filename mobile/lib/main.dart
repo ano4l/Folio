@@ -11,10 +11,6 @@ import 'widgets/folio_logo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
   final state = AppState();
   runApp(ChangeNotifierProvider.value(value: state, child: const FolioApp()));
   await state.initialize();
@@ -25,11 +21,28 @@ class FolioApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    context.select<AppState, (String, String?, bool)>(
+      (s) => (s.authStep, s.user?.id, s.appLocked),
+    );
+    final state = context.read<AppState>();
     return MaterialApp(
+      key: ValueKey(state.user?.id ?? 'signed-out'),
       title: 'Folio',
       debugShowCheckedModeBanner: false,
+      // Match the Android scrolling/overscroll treatment on both platforms,
+      // without changing native text editing, permissions or back navigation.
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        platform: TargetPlatform.android,
+        physics: const ClampingScrollPhysics(),
+      ),
       theme: AppTheme.light,
+      builder:
+          (context, child) => Stack(
+            children: [
+              Offstage(offstage: state.appLocked, child: child),
+              if (state.appLocked) const _AuthenticatedGate(lockOverlay: true),
+            ],
+          ),
       home: switch (state.authStep) {
         'checking' => const _LaunchScreen(),
         'authenticated' => const _AuthenticatedGate(),
@@ -40,7 +53,8 @@ class FolioApp extends StatelessWidget {
 }
 
 class _AuthenticatedGate extends StatefulWidget {
-  const _AuthenticatedGate();
+  const _AuthenticatedGate({this.lockOverlay = false});
+  final bool lockOverlay;
   @override
   State<_AuthenticatedGate> createState() => _AuthenticatedGateState();
 }
@@ -68,6 +82,7 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.lockOverlay) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       context.read<AppState>().lock();
@@ -82,9 +97,9 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
           (await _auth.getAvailableBiometrics()).isNotEmpty;
       if (!mounted) return;
       state.setBiometricAvailable(available);
-      if (state.appLocked && available) await _unlock();
-      if (state.appLocked && !available) state.unlock();
+      if (state.appLocked && available && widget.lockOverlay) await _unlock();
       if (!state.appLocked &&
+          !widget.lockOverlay &&
           available &&
           !state.biometricEnabled &&
           !_biometricPromptShown) {
@@ -162,7 +177,7 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    if (!state.appLocked) return const MainShell();
+    if (!widget.lockOverlay) return const MainShell();
     return Scaffold(
       body: SafeArea(
         child: Padding(
