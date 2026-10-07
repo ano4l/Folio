@@ -13,11 +13,11 @@ This document is the working delivery plan for Folio. It translates the product 
 
 **Current release:** prototype with first server-backed slice / version `0.1.0`
 
-**Repository state:** responsive Next.js frontend with Vercel-native APIs, Supabase account/session/document persistence and private uploads, Resend MFA, owner-scoped OpenRouter chat, plus retained Spring Boot/AWS migration scaffolding.
+**Repository state:** responsive Next.js frontend with Vercel-native APIs, Supabase account/session/document persistence and private uploads, Resend MFA, owner-scoped Gemini chat, plus retained Spring Boot/AWS migration scaffolding.
 
 **Data safety:** identity and private source upload now cross the real API boundary, but malware scanning, OCR/extraction, deadlines, audit, and some vault detail state remain simulated. Do not upload real student documents yet.
 
-**Verified:** local frontend production build and backend Maven tests pass. Live Supabase migration, Vercel runtime, Resend delivery, and OpenRouter privacy routing still require configured environments.
+**Verified:** local frontend production build and backend Maven tests pass. Live Supabase migration, Vercel runtime, Resend delivery, and Gemini configuration still require configured environments.
 
 **Primary next milestone:** complete the secure pilot foundation before connecting real document bytes or identity provider credentials.
 
@@ -84,14 +84,14 @@ This document is the working delivery plan for Folio. It translates the product 
 
 ### 0.6 Grounded Q&A service
 
-- **Status:** In progress; real OpenRouter call and owner-scoped keyword retrieval implemented against seeded document rows.
-- **Scope:** conversational history, pre-model relevance gate, prompt-injection boundary, abstention, source chips, OpenRouter model configuration, and privacy routing (`data_collection=deny`, ZDR by default).
+- **Status:** In progress; direct Gemini call and owner-scoped keyword retrieval implemented against seeded document rows.
+- **Scope:** conversational history, pre-model relevance gate, prompt-injection boundary, abstention, source chips, and Gemini model configuration.
 - **Implementation tasks:**
   1. Replace seeded rows with OCR/page chunks from the real upload pipeline and add embeddings/reranking.
   2. Validate that every model citation marker maps to returned evidence; reject unsupported claims.
   3. Add persisted credit metering, feedback, rate limits, evaluation sets, and provider fallback policy.
 - **Verification:** every non-abstained answer has a valid citation; cross-user retrieval tests fail closed.
-- **Dependency:** OpenRouter key/model availability now; OCR chunks, embeddings, and evaluation data for pilot quality.
+- **Dependency:** Gemini key/model availability now; OCR chunks, embeddings, and evaluation data for pilot quality.
 
 ### 0.7 Deadline timeline prototype
 

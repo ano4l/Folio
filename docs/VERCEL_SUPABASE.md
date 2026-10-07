@@ -14,7 +14,7 @@ Browser clients have no direct table policies. Vercel routes validate the Folio 
 ## 2. Configure providers
 
 1. Verify a sending domain in Resend and set `EMAIL_FROM` to an address on it.
-2. Create an OpenRouter key and set `OPENROUTER_MODEL`. The default is `openrouter/free`, which routes to an available zero-cost model. Folio requests `data_collection=deny`; enable `OPENROUTER_ZDR=true` only when the selected model has a compatible ZDR endpoint.
+2. Create a Gemini API key in Google AI Studio and set it as `GEMINI_API_KEY`. `GEMINI_MODEL` is optional and defaults to `gemini-3.8-flash`. Keep the API key server-only and restrict it to the Generative Language API in Google Cloud where practical.
 3. Generate `AUTH_OTP_PEPPER` with at least 32 random characters. Changing it invalidates outstanding codes.
 
 ## 3. Run locally
