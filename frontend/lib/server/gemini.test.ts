@@ -16,13 +16,13 @@ afterEach(() => {
   else process.env.GEMINI_MODEL = originalModel;
 });
 
-test("uses the current Gemini 3 structured-output and thinking contract", async () => {
+test("uses the Gemini generateContent structured-output and thinking contract", async () => {
   process.env.GEMINI_API_KEY = "test-key";
-  process.env.GEMINI_MODEL = "gemini-test";
+  process.env.GEMINI_MODEL = "gemini-3.8-flash";
   let requestBody: Record<string, any> = {};
   globalThis.fetch = async (_input, init) => {
     requestBody = JSON.parse(String(init?.body));
-    return Response.json({ modelVersion: "gemini-test-001", candidates: [{ content: { parts: [{ text: "{\"summary\":\"Ready\",\"entities\":[]}" }] } }] });
+    return Response.json({ modelVersion: "gemini-3.8-flash-001", candidates: [{ content: { parts: [{ text: "{\"summary\":\"Ready\",\"entities\":[]}" }] } }] });
   };
 
   const result = await generateGeminiText({
@@ -33,11 +33,12 @@ test("uses the current Gemini 3 structured-output and thinking contract", async 
     responseJsonSchema: { type: "object" },
   });
 
-  assert.equal(requestBody.generationConfig.thinkingConfig.thinkingLevel, "LOW");
-  assert.equal(requestBody.generationConfig.responseFormat.text.mimeType, "APPLICATION_JSON");
-  assert.deepEqual(requestBody.generationConfig.responseFormat.text.schema, { type: "object" });
-  assert.equal(requestBody.generationConfig.responseJsonSchema, undefined);
-  assert.equal(result.model, "gemini-test-001");
+  assert.equal(requestBody.generationConfig.thinkingConfig.thinkingLevel, "low");
+  assert.equal(requestBody.generationConfig.responseMimeType, "application/json");
+  assert.deepEqual(requestBody.generationConfig.responseJsonSchema, { type: "object" });
+  assert.equal(requestBody.generationConfig.responseFormat, undefined);
+  assert.equal(requestBody.generationConfig.temperature, undefined);
+  assert.equal(result.model, "gemini-3.8-flash-001");
 });
 
 test("joins multipart Gemini text into one usable response", async () => {
@@ -59,4 +60,19 @@ test("fails safely on provider rejection without exposing the response body", as
     generateGeminiText({ systemInstruction: "Answer", prompt: "Private text", temperature: 0.2, maxOutputTokens: 2048 }),
     error => error instanceof Error && error.message === "Gemini request failed (429)" && !error.message.includes("private"),
   );
+});
+
+test("retries transient provider failures and keeps the same request", async () => {
+  process.env.GEMINI_API_KEY = "test-key";
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls < 3) return new Response("busy", { status: 503 });
+    return Response.json({ candidates: [{ content: { parts: [{ text: "Recovered" }] } }] });
+  };
+
+  const result = await generateGeminiText({ systemInstruction: "Answer", prompt: "Question", temperature: 0.2, maxOutputTokens: 256 });
+
+  assert.equal(calls, 3);
+  assert.equal(result.text, "Recovered");
 });

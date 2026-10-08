@@ -17,27 +17,46 @@ type GenerateOptions = {
 
 export const geminiModel = () => process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function retryDelay(response: Response, attempt: number) {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return Math.min(retryAfter * 1000, 2_000);
+  }
+  return attempt === 0 ? 250 : 750;
+}
+
+function wait(milliseconds: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = setTimeout(resolve, milliseconds);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    }, { once: true });
+  });
+}
+
 export async function generateGeminiText(options: GenerateOptions) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("Gemini is not configured yet");
 
   const model = geminiModel();
   const generationConfig = {
-    temperature: options.temperature,
     maxOutputTokens: options.maxOutputTokens,
-    // Gemini 3 models reason before answering. LOW prevents short document
+    // Gemini 3 models reason before answering. Low prevents short document
     // summaries from spending their complete output allowance on thinking.
-    thinkingConfig: { thinkingLevel: "LOW" },
+    thinkingConfig: { thinkingLevel: "low" },
+    ...(!model.startsWith("gemini-3") ? { temperature: options.temperature } : {}),
     ...(options.responseJsonSchema ? {
-      responseFormat: {
-        text: {
-          mimeType: "APPLICATION_JSON",
-          schema: options.responseJsonSchema,
-        },
-      },
+      responseMimeType: "application/json",
+      responseJsonSchema: options.responseJsonSchema,
     } : {}),
   };
-  const response = await fetch(`${GEMINI_API_ROOT}/${encodeURIComponent(model)}:generateContent`, {
+  const signal = options.signal || AbortSignal.timeout(45_000);
+  const url = `${GEMINI_API_ROOT}/${encodeURIComponent(model)}:generateContent`;
+  const init: RequestInit = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -48,8 +67,24 @@ export async function generateGeminiText(options: GenerateOptions) {
       contents: [{ role: "user", parts: [{ text: options.prompt }] }],
       generationConfig,
     }),
-    signal: options.signal || AbortSignal.timeout(45_000),
-  });
+    signal,
+  };
+
+  let response: Response | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      if (signal.aborted || attempt === 2) throw error;
+      await wait(attempt === 0 ? 250 : 750, signal);
+      continue;
+    }
+    if (response.ok || !RETRYABLE_STATUS.has(response.status) || attempt === 2) break;
+    await response.body?.cancel().catch(() => undefined);
+    await wait(retryDelay(response, attempt), signal);
+  }
+
+  if (!response) throw new Error("Gemini did not return a response");
 
   if (!response.ok) {
     // Do not log the response body: provider errors can echo submitted content.

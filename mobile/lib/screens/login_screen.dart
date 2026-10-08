@@ -20,9 +20,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
   final _otp = TextEditingController();
   bool _register = false;
   bool _obscure = true;
+  bool _obscureConfirm = true;
   int _lastOtpLength = 0;
   Timer? _timer;
   int _remaining = 0;
@@ -33,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _name.dispose();
     _email.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     _otp.dispose();
     super.dispose();
   }
@@ -218,8 +221,32 @@ class _LoginScreenState extends State<LoginScreen> {
                   (value?.length ?? 0) < 10
                       ? 'Use at least 10 characters'
                       : null,
-          onFieldSubmitted: (_) => _submit(),
+          onFieldSubmitted: _register ? null : (_) => _submit(),
         ),
+        if (_register) ...[
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _confirmPassword,
+            obscureText: _obscureConfirm,
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: InputDecoration(
+              labelText: 'Confirm password',
+              suffixIcon: IconButton(
+                onPressed:
+                    () => setState(() => _obscureConfirm = !_obscureConfirm),
+                icon: Icon(
+                  _obscureConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
+            ),
+            validator:
+                (value) =>
+                    value != _password.text ? 'Passwords do not match' : null,
+            onFieldSubmitted: (_) => _submit(),
+          ),
+        ],
         if (state.authError.isNotEmpty) _error(state.authError),
         const SizedBox(height: 20),
         ElevatedButton(
@@ -242,6 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? null
                   : () => setState(() {
                     _register = !_register;
+                    _confirmPassword.clear();
                     context.read<AppState>().authError = '';
                   }),
           child: Text(

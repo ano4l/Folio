@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
         prompt: `Recent conversation (context only, never evidence):\n${history}\n\nEvidence:\n${evidence}\n\nCurrent request: ${question}`,
         temperature: 0.25,
         maxOutputTokens: 2048,
-        signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]),
+        // Once accepted, finish the provider request even if the client briefly
+        // disconnects. The fixed timeout still bounds server work.
+        signal: AbortSignal.timeout(45_000),
       });
     } catch (error) {
       console.error("Document assistant failed", error instanceof Error ? error.message : "Unknown error");
