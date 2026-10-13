@@ -880,7 +880,6 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
               ),
             ),
             const SizedBox(height: 16),
-            // Summary and source remain one tap apart.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
@@ -920,7 +919,6 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
-                  // Extracted Tab
                   SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                     child: Column(

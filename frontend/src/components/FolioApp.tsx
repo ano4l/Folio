@@ -166,7 +166,6 @@ const navItems = [
 ] as const;
 
 export default function FolioApp() {
-  // Authentication & MFA flow states
   const [authStep, setAuthStep] = useState<"checking" | "credentials" | "mfa" | "authenticated">("checking");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [displayNameInput, setDisplayNameInput] = useState("");
@@ -185,68 +184,54 @@ export default function FolioApp() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
-  // Navigation, documents, and interactive highlights
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [hoveredEntity, setHoveredEntity] = useState<DocEntity | null>(null);
   const [docTab, setDocTab] = useState<"preview" | "ocr" | "json">("preview");
 
-  // Mobile layout states
   const [mobileDetailTab, setMobileDetailTab] = useState<"extraction" | "document">("extraction");
   const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
 
-  // Upload state machine
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadStep, setUploadStep] = useState<"idle" | "uploading" | "ocr" | "nlp" | "done">("idle");
 
-  // Deadlines & Timeline interactive state
   const [deadlines, setDeadlines] = useState(initialDeadlines);
   const [completingDeadlineId, setCompletingDeadlineId] = useState<number | null>(null);
 
-  // Security and Audit log search/filter states
   const [sharing, setSharing] = useState(false);
   const [logFilter, setLogFilter] = useState<LogCategory>("All");
   const [logSearch, setLogSearch] = useState("");
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(initialAuditLogs);
 
-  // Voice command states
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceSearchActive, setVoiceSearchActive] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<"listening" | "transcribing" | null>(null);
 
-  // NL Search overlay states
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<{ type: "doc" | "deadline" | "ai"; title: string; detail: string; action?: () => void }[]>([]);
 
-  // Calendar view state for Deadlines screen
   const [deadlineView, setDeadlineView] = useState<"timeline" | "calendar">("timeline");
   const [calendarMonth, setCalendarMonth] = useState(new Date(2026, 1, 1)); // Feb 2026
 
-  // Deleted documents (soft-delete + recovery)
   const [deletedDocs, setDeletedDocs] = useState<Document[]>([]);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
 
-  // Biometric state
   const [biometricScanning, setBiometricScanning] = useState(false);
   const [biometricDone, setBiometricDone] = useState(false);
 
-  // Notification bell
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // Security toggle states
   const [mfaEnabled, setMfaEnabled] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(true);
 
-  // Real file upload
   const [uploadFileName, setUploadFileName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
-  // Grounded Chat Q&A states
   const [chatInput, setInput] = useState("");
   const initialChatMessages: ChatMessage[] = [
     {
@@ -261,11 +246,9 @@ export default function FolioApp() {
   const chatKey = activeChatDocumentId || "all";
   const chatMessages = chatMessagesByDocument[chatKey] || initialChatMessages;
 
-  // Toasts (supports multiple stacked toasts)
   const [toast, setToast] = useState("");
   const [toastType, setToastType] = useState<"info" | "success" | "error">("success");
 
-  // Auto clear toast
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(""), 4000);
@@ -273,7 +256,6 @@ export default function FolioApp() {
     }
   }, [toast]);
 
-  // Auto-scroll chat log on new messages
   useEffect(() => {
     if (chatLogRef.current) {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
@@ -301,7 +283,6 @@ export default function FolioApp() {
       .catch(error => { setToast(error instanceof Error ? error.message : "Unable to load your documents"); setToastType("error"); });
   }, [authStep]);
 
-  // MFA code resend countdown
   useEffect(() => {
     if (authStep === "mfa" && mfaTimer > 0) {
       const countdown = setInterval(() => setMfaTimer((t) => t - 1), 1000);
@@ -333,9 +314,7 @@ export default function FolioApp() {
   };
 
   const handleMfaChange = (index: number, val: string) => {
-    // Browsers commonly provide the whole OTP when the user pastes it or
-    // when autocomplete="one-time-code" fills the field. The old handler
-    // rejected that value, making an otherwise valid login appear broken.
+    // Paste and OTP autofill can supply several digits to a single field.
     const digits = val.replace(/\D/g, "");
     if (!digits) {
       const nextMfa = [...mfaDigits];
@@ -349,12 +328,10 @@ export default function FolioApp() {
     });
     setMfaDigits(nextMfa);
 
-    // Auto-focus next input
     const nextIndex = Math.min(index + digits.length, 5);
     if (nextIndex < 5) {
       mfaRefs.current[nextIndex]?.focus();
     }
-    // Auto-submit when last digit entered
     if (nextMfa.join("").length === 6) {
       const code = nextMfa.join("");
       if (code.length === 6) {
@@ -388,7 +365,6 @@ export default function FolioApp() {
       if (!response.ok) throw new Error(data.message || "Unable to verify this code");
       setAuthUser(data); setAuthStep("authenticated"); setPasswordInput("");
       setToast(authMode === "register" ? "Account verified. Welcome to Folio." : "Identity verified. Welcome back.");
-      // Log Secure Session Initiation
       const newLog: AuditEntry = {
         id: Date.now(),
         time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
@@ -481,7 +457,6 @@ export default function FolioApp() {
       setCompletingDeadlineId(null);
       setToast("Task resolved! Database entry updated.");
 
-      // Log Security Compliance Audit
       const targetDeadline = deadlines.find((d) => d.id === id);
       const newLog: AuditEntry = {
         id: Date.now(),
@@ -495,7 +470,6 @@ export default function FolioApp() {
     }, 1500);
   };
 
-  // AI QA Grounded responses log
   const handleSendChat = async (question = chatInput) => {
     if (!question.trim() || aiTyping) return;
     const conversationKey = activeChatDocumentId || "all";
@@ -538,10 +512,8 @@ export default function FolioApp() {
         }
         if (done) break;
       }
-      // Read response aloud if voice was active
       if (voiceActive) speakText(responseText);
 
-      // Log AI Query event
       const newLog: AuditEntry = {
         id: Date.now(),
         time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
@@ -558,7 +530,6 @@ export default function FolioApp() {
     } finally { setAiTyping(false); }
   };
 
-  // Download document OCR text as a .txt file
   const handleDownloadOCR = (doc: Document) => {
     const blob = new Blob([doc.rawText || doc.summary], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -572,7 +543,6 @@ export default function FolioApp() {
     setToast("OCR text downloaded.");
   };
 
-  // Open OCR text in a new browser tab (full screen)
   const handleFullScreen = (doc: Document) => {
     const html = `<!DOCTYPE html><html><head><title>${doc.title}</title><style>body{font-family:monospace;white-space:pre-wrap;padding:32px;background:#faf9f5;color:#0b132b;font-size:14px;line-height:1.7;max-width:860px;margin:auto}</style></head><body>${doc.rawText || doc.summary}</body></html>`;
     const blob = new Blob([html], { type: "text/html" });
@@ -580,14 +550,12 @@ export default function FolioApp() {
     window.open(url, "_blank");
   };
 
-  // Navigate to a source document from a chat citation
   const handleCitationClick = (docTitle: string) => {
     const match = documents.find((d) => d.title === docTitle);
     if (match) {
       setSelectedDoc(match);
       setScreen("documents");
       setToast(`Opened: ${match.title}`);
-      // Log access
       const newLog: AuditEntry = {
         id: Date.now(),
         time: new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + ", " + new Date().toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }),
@@ -600,7 +568,6 @@ export default function FolioApp() {
     }
   };
 
-  // NL intent-based search handler
   const handleNLSearch = (query: string) => {
     setSearchQuery(query);
     if (!query.trim()) { setSearchResults([]); return; }
@@ -660,7 +627,7 @@ export default function FolioApp() {
     setSearchResults(results);
   };
 
-  // Voice command handler — uses real Web Speech API, falls back to simulation
+  // Use the Web Speech API when the browser supports it.
   const setVoiceSurface = (target: "chat" | "search" | null, status: "listening" | "transcribing" | null = null) => {
     setVoiceActive(target === "chat");
     setVoiceSearchActive(target === "search");
@@ -758,7 +725,6 @@ export default function FolioApp() {
     }
   };
 
-  // Read AI response aloud via speechSynthesis
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -768,7 +734,6 @@ export default function FolioApp() {
     window.speechSynthesis.speak(utter);
   };
 
-  // Soft-delete a document (move to recycle bin)
   const handleDeleteDocument = async (doc: Document) => {
     const response = await fetch(`${API_URL}/v1/documents/${doc.id}`, {
       method: "DELETE", credentials: "include", headers: { "X-Requested-With": "FolioWeb" },
@@ -794,7 +759,6 @@ export default function FolioApp() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Restore a document from recycle bin
   const handleRestoreDocument = async (doc: Document) => {
     const response = await fetch(`${API_URL}/v1/documents/restore`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-Requested-With": "FolioWeb" },
@@ -854,7 +818,6 @@ export default function FolioApp() {
     })();
   };
 
-  // Calendar helpers
   const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   const getFirstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   const getDeadlinesForDay = (day: number) => {
@@ -869,7 +832,6 @@ export default function FolioApp() {
     });
   };
 
-  // Export audit logs
   const handleExportLogs = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(auditLogs, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -881,7 +843,6 @@ export default function FolioApp() {
     setToast("POPIA-compliant JSON security log download started.");
   };
 
-  // Filter audit logs by category + search string
   const filteredAuditLogs = useMemo(() => {
     return auditLogs.filter((entry) => {
       const matchCategory = logFilter === "All" || entry.category === logFilter;
@@ -902,7 +863,6 @@ export default function FolioApp() {
     return <main className="login-page"><div className="login-card"><div className="brand"><span><FolderOpen size={19} /></span><div><b>Folio</b><small>Checking your secure session...</small></div></div></div></main>;
   }
 
-  // Login and registration screen render
   if (authStep === "credentials") {
     return (
       <main className="login-page">
@@ -984,7 +944,6 @@ export default function FolioApp() {
     );
   }
 
-  // MFA Verification Screen render
   if (authStep === "mfa") {
     return (
       <main className="login-page">
@@ -1047,7 +1006,6 @@ export default function FolioApp() {
     );
   }
 
-  // Dashboard & Authenticated Core Application App shell
   return (
     <main className="app-shell animate-fade-in">
       {/* Sidebar Navigation */}

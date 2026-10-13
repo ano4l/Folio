@@ -35,7 +35,6 @@ class SecurityScreen extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
-        // Governance Toggles Group
         GlassContainer(
           padding: EdgeInsets.zero,
           child: Column(

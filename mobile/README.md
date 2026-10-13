@@ -1,22 +1,10 @@
-# Folio Mobile — shared Android and iOS app
+# Folio Mobile
 
-This Flutter app is the source of truth for both mobile platforms. The green/teal Android design, typography, screens, state, and interactions are shared with iOS through `lib/main.dart`.
+One Flutter app for Android and iOS. Screens, theme, navigation, and account state live in `lib/`; native adapters provide scanning, OCR, PDF operations, and platform integrations.
 
-The older blue/indigo SwiftUI prototype has been removed from the repository. For the current iOS app use this directory's `ios/Runner.xcworkspace` and the Runner scheme.
-
-## Design and features
-
-- Teal `0E7C74`, warm paper `FAF9F5`, DM Sans body and Fraunces headings.
-- Shared login/MFA, adaptive phone/tablet navigation, document vault, per-document AI conversations, readable Markdown, tasks/calendar and security controls.
-- Retained tabs, short transitions, visible Material press feedback and reduced-motion support.
-- Account-scoped encrypted device storage for chat history, drafts, saved answers and tasks.
-- Native scanning/OCR adapters return the same page-number/text contract to Flutter. Android uses ML Kit; iOS uses VisionKit, Vision and PDFKit. Native controls and recognition results need not be pixel/text identical.
-- The iOS Documents screen adds on-device PDF tools: combine PDFs, make a PDF from images, extract selected pages, and export readable DOCX text into a PDF. Word page layout, charts, headers and footnotes are not retained; review the new PDF before sharing. Finished files can be shared or uploaded to the same authenticated vault and processing API as Android.
-- The circular vault counter and all five product screens come from shared Flutter widgets. The retired blue SwiftUI demo is not an iOS build target.
+The app includes document upload and reading, document-scoped chat, study notes and quizzes, revision cards, tasks, and calendar export. Chats, courses, notes, tasks, and activity are stored in an encrypted account-specific device workspace. They do not sync between devices.
 
 ## Development
-
-Run commands from `mobile/` using the same Flutter SDK version on both platforms and keep `pubspec.lock`.
 
 ```sh
 flutter pub get
@@ -25,19 +13,33 @@ flutter test
 flutter run
 ```
 
-Android: `flutter build apk --debug`.
-
-iOS requires a Mac with Xcode. Start with `flutter build ios --debug --no-codesign`, then open `ios/Runner.xcworkspace`, select your signing team and device, and run Runner. See [the iOS parity/build guide](../docs/IOS_FLUTTER_PARITY.md) for archive instructions and verification gates.
-
-## Verification scope
-
-Flutter widget tests exercise Android and iOS platform modes, shared theme values, large text, phone/tablet layouts, keyboard/safe-area insets, chat drafts and iPad share anchors. Platform-mode tests are not a substitute for native iOS compilation or device QA.
-
-On the corresponding device, run:
+To use a different API:
 
 ```sh
-flutter test integration_test/android_ocr_test.dart -d <android-device-id>
-flutter test integration_test/ios_ocr_test.dart -d <ios-device-id>
+flutter run --dart-define=FOLIO_API_URL=https://your-host/api
 ```
 
-The OCR fixture does not call AI or upload documents. iOS native compilation/camera/OCR, Face ID, VoiceOver, screenshot comparisons and frame profiling still require Mac/device verification. Read [implementation progress and limitations](../docs/ANDROID_IMPLEMENTATION_PROGRESS.md) before release; backend changes must be deployed separately.
+Keep `pubspec.lock` and the local packages under `plugins/` and `third_party/`. The dependency overrides add iOS SwiftPM packaging to the storage and text-to-speech packages.
+
+## Builds
+
+Android:
+
+```sh
+flutter build apk --debug
+```
+
+iOS on a Mac:
+
+```sh
+flutter build ios --debug --no-codesign
+open ios/Runner.xcworkspace
+```
+
+Select the Runner scheme and configure signing in Xcode. See [platform setup](../docs/IOS_FLUTTER_PARITY.md) and the [Windows iPhone workflow](../docs/IOS_XCROSS.md).
+
+## Checks
+
+Widget tests cover shared UI and state. Scanning, OCR, biometrics, sharing, and frame performance also need native-device testing. See [testing](../docs/TESTING.md) for commands and release checks.
+
+PDF tools produce separate files. Word conversion retains readable paragraphs, not the original layout. Upload jobs continue during in-app navigation but can be interrupted when the operating system suspends or closes Folio.

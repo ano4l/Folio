@@ -1,10 +1,40 @@
-node_modules
-.next
-.next-stale-*
+# Dependencies and build caches
+node_modules/
+.next/
+.next-stale-*/
 *.tsbuildinfo
-out
+out/
+coverage/
+__pycache__/
+*.pyc
+
+# Local configuration
 .env*
 !.env.example
-submissions/generated/
-__pycache__/
-.vercel
+.vercel/
+.private/
+/supabase/.temp/
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+*.tmp
+*.bak
+*~
+
+# Local deliverables and temporary work
+submissions/
+output/
+outputs/
+tmp/
+temp/
+/mobile/releases/
+
+# Keep only scripts required by documented development workflows.
+scripts/*
+!/scripts/ios-xcross.ps1
+
+# Next.js generates these when starting the development server.
+/frontend/AGENTS.md
+/frontend/CLAUDE.md
