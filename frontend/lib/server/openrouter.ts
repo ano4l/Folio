@@ -1,11 +1,13 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 type GenerateOptions = {
+  model?: string;
   systemInstruction: string;
   prompt: string;
   temperature: number;
   maxOutputTokens: number;
   responseJsonSchema?: Record<string, unknown>;
+  reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
   signal?: AbortSignal;
 };
 
@@ -33,7 +35,7 @@ function wait(milliseconds: number, signal: AbortSignal) {
 export async function generateOpenRouterText(options: GenerateOptions) {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) throw new Error("OpenRouter is not configured yet");
-  const model = openRouterModel();
+  const model = options.model?.trim() || openRouterModel();
   const signal = options.signal || AbortSignal.timeout(45_000);
   const init: RequestInit = {
     method: "POST",
@@ -53,6 +55,14 @@ export async function generateOpenRouterText(options: GenerateOptions) {
         ...(process.env.OPENROUTER_ZDR === "true" ? { zdr: true } : {}),
         ...(options.responseJsonSchema ? { require_parameters: true } : {}),
       },
+      ...(options.reasoningEffort
+        ? {
+            reasoning: {
+              effort: options.reasoningEffort,
+              ...(options.reasoningEffort === "none" ? { enabled: false } : {}),
+            },
+          }
+        : {}),
       ...(options.responseJsonSchema ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: options.systemInstruction + (options.responseJsonSchema
