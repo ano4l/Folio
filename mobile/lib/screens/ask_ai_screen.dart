@@ -52,6 +52,30 @@ class DocumentChatPage extends StatelessWidget {
   );
 }
 
+/// Rebuilds one chat bubble when its own message object changes. Streaming
+/// replaces only the last message, so earlier answers keep their layout and
+/// parsed Markdown instead of re-rendering on every token batch.
+class _LiveMessage extends StatelessWidget {
+  const _LiveMessage({
+    super.key,
+    required this.id,
+    required this.documentId,
+    required this.builder,
+  });
+  final String id;
+  final String? documentId;
+  final Widget Function(ChatMessage message, AppState state) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = context.select<AppState, ChatMessage?>(
+      (s) => s.messagesFor(documentId).where((m) => m.id == id).lastOrNull,
+    );
+    if (message == null) return const SizedBox.shrink();
+    return RepaintBoundary(child: builder(message, context.read<AppState>()));
+  }
+}
+
 class AskAiScreen extends StatefulWidget {
   const AskAiScreen({
     super.key,
@@ -246,11 +270,12 @@ class _AskAiScreenState extends State<AskAiScreen> {
                   s.cacheError,
                   s.isChatBusy(widget.documentId),
                   s.chatError(widget.documentId),
-                  ...s.messagesFor(widget.documentId),
-                  for (final message in s.messagesFor(widget.documentId))
-                    for (final question
-                        in message.quiz?.questions ?? <StudyQuestion>[])
-                      question.selectedIndex,
+                  // Message bodies are observed per message in _LiveMessage so
+                  // a streaming token only rebuilds its own bubble.
+                  for (final message in s.messagesFor(widget.documentId)) ...[
+                    message.id,
+                    message.saved,
+                  ],
                 ] else ...[
                   for (final doc in s.documents)
                     s.messagesFor(doc.id).where((m) => m.role == 'user').length,
@@ -390,11 +415,17 @@ class _AskAiScreenState extends State<AskAiScreen> {
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                   itemCount: messages.isEmpty ? 1 : messages.length,
-                  itemBuilder:
-                      (context, index) =>
-                          messages.isEmpty
-                              ? _welcome(available)
-                              : _message(messages[index], state),
+                  itemBuilder: (context, index) {
+                    if (messages.isEmpty) return _welcome(available);
+                    final message = messages[index];
+                    if (message.id.isEmpty) return _message(message, state);
+                    return _LiveMessage(
+                      key: ValueKey(message.id),
+                      id: message.id,
+                      documentId: widget.documentId,
+                      builder: _message,
+                    );
+                  },
                 ),
               ),
               if (!_follow)

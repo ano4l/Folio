@@ -119,9 +119,11 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
       if (!state.appLocked &&
           !widget.lockOverlay &&
           available &&
-          !state.biometricEnabled &&
+          state.shouldOfferBiometrics &&
           !_biometricPromptShown) {
         _biometricPromptShown = true;
+        await state.markBiometricOfferShown();
+        if (!mounted) return;
         await _offerBiometricSetup();
       }
     } on PlatformException {

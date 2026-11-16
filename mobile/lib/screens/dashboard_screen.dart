@@ -411,7 +411,9 @@ class _RecentDocuments extends StatelessWidget {
     children: [
       const _SectionTitle('Recent documents'),
       const SizedBox(height: 12),
-      if (state.documentsLoading)
+      // Only the very first load shows a placeholder; later refreshes keep the
+      // existing list on screen instead of swapping it for a card.
+      if (state.documentsLoading && state.documents.isEmpty)
         const _EmptyCard(
           icon: CupertinoIcons.arrow_2_circlepath,
           title: 'Refreshing your vault',

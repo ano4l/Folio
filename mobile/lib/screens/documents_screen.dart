@@ -60,7 +60,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       (s) =>
           s.navigationIndex == 1
               ? [
-                s.selectedDoc,
                 s.navigationIndex,
                 s.documentsLoading,
                 s.documentsError,
@@ -71,17 +70,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               : const <Object?>[],
     );
     final state = context.read<AppState>();
-    final doc = state.selectedDoc;
-
-    if (doc != null) {
-      return PopScope(
-        canPop: state.navigationIndex != 1,
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop && state.navigationIndex == 1) state.selectDoc(null);
-        },
-        child: DocumentDetailView(key: ValueKey(doc.id), doc: doc),
-      );
-    }
+    // The selected document opens as its own page from MainShell.
     final query = _query.trim().toLowerCase();
     final visible =
         state.documents
@@ -885,7 +874,7 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_back, size: 22),
-          onPressed: () => state.selectDoc(null),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
           doc.title,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../models/document.dart';
 import '../services/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/folio_logo.dart';
@@ -112,11 +113,72 @@ class _MainShellState extends State<MainShell> {
           ],
         ),
       ),
+      // Keep the dock mounted while the keyboard is open. The keyboard covers
+      // it, which avoids the dock popping out and the body re-laying out on
+      // every focus change.
       bottomNavigationBar:
-          expanded || media.viewInsets.bottom > 0
-              ? null
-              : _BottomDock(index: _index, onSelect: _select),
+          expanded ? null : _BottomDock(index: _index, onSelect: _select),
     );
+  }
+
+  AppState? _state;
+  Route<void>? _detailRoute;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final state = context.read<AppState>();
+    if (identical(_state, state)) return;
+    _state?.removeListener(_syncDocumentRoute);
+    _state = state;
+    state.addListener(_syncDocumentRoute);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncDocumentRoute());
+  }
+
+  @override
+  void dispose() {
+    _state?.removeListener(_syncDocumentRoute);
+    super.dispose();
+  }
+
+  /// Opening a document pushes a full page with a native transition instead of
+  /// swapping content inside the Documents tab under the shell header.
+  void _syncDocumentRoute() {
+    if (!mounted) return;
+    final doc = _state?.selectedDoc;
+    final route = _detailRoute;
+    if (doc != null && route == null) {
+      final pushed = CupertinoPageRoute<void>(
+        builder: (_) => const _DocumentDetailRoute(),
+      );
+      _detailRoute = pushed;
+      Navigator.of(context).push(pushed).whenComplete(() {
+        if (identical(_detailRoute, pushed)) _detailRoute = null;
+        final state = _state;
+        if (mounted && state != null && state.selectedDoc != null) {
+          state.selectDoc(null);
+        }
+      });
+    } else if (doc == null && route != null) {
+      _detailRoute = null;
+      final navigator = Navigator.of(context);
+      if (route.isCurrent) {
+        navigator.pop();
+      } else if (route.isActive) {
+        navigator.removeRoute(route);
+      }
+    }
+  }
+}
+
+class _DocumentDetailRoute extends StatelessWidget {
+  const _DocumentDetailRoute();
+
+  @override
+  Widget build(BuildContext context) {
+    final doc = context.select<AppState, Document?>((s) => s.selectedDoc);
+    if (doc == null) return const Scaffold(backgroundColor: AppColors.paper);
+    return DocumentDetailView(key: ValueKey(doc.id), doc: doc);
   }
 }
 

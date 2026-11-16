@@ -41,10 +41,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void openDocument(Document doc) {
-    navigationIndex = 1;
-    selectDoc(doc);
-  }
+  void openDocument(Document doc) => selectDoc(doc);
 
   String authStep = 'checking'; // checking | credentials | mfa | authenticated
   AuthUser? user;
@@ -269,6 +266,19 @@ class AppState extends ChangeNotifier {
   bool biometricEnabled = false;
   bool biometricAvailable = false;
   bool appLocked = false;
+  int launchCount = 0;
+  bool biometricOfferShown = false;
+
+  /// Offer biometric unlock once, and never on the very first launch, so the
+  /// first screen after sign-in is the workspace rather than a dialog.
+  bool get shouldOfferBiometrics =>
+      launchCount >= 2 && !biometricEnabled && !biometricOfferShown;
+
+  Future<void> markBiometricOfferShown() async {
+    biometricOfferShown = true;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('biometric_offer_shown', true);
+  }
 
   int get pendingCount => deadlines.where((item) => !item.completed).length;
   List<ChatMessage> get chatMessages => messagesFor(activeChatDocumentId);
@@ -279,6 +289,10 @@ class AppState extends ChangeNotifier {
     try {
       final preferences = await SharedPreferences.getInstance();
       biometricEnabled = preferences.getBool('biometric_enabled') ?? false;
+      biometricOfferShown =
+          preferences.getBool('biometric_offer_shown') ?? false;
+      launchCount = (preferences.getInt('launch_count') ?? 0) + 1;
+      await preferences.setInt('launch_count', launchCount);
       await api.initialize();
       user = await api.currentUser();
       authStep = 'authenticated';
