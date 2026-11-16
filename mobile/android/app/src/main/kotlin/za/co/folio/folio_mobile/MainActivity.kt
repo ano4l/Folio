@@ -62,6 +62,12 @@ class MainActivity : FlutterFragmentActivity() {
                             .addOnFailureListener { pendingScan = null; result.error("SCANNER_UNAVAILABLE", "Scanner needs compatible Google Play services. Import a file instead.", null) }
                     }
                 }
+                "mergePdf", "imagesToPdf", "extractPages", "rotatePdf" -> {
+                    readerExecutor.execute {
+                        try { val path = PdfTools(this).run(call); runOnUiThread { result.success(path) } }
+                        catch (error: Exception) { runOnUiThread { result.error("PDF_TOOL", error.message ?: "The PDF tool could not finish.", null) } }
+                    }
+                }
                 "extract" -> {
                     val path = call.argument<String>("path")
                     if (path == null) result.error("INVALID_FILE", "Choose a file first.", null)

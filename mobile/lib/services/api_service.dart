@@ -7,7 +7,11 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/document.dart';
+import '../models/study.dart';
 import 'document_scanner.dart';
+import 'processing_recovery.dart';
+
+Object? _parseResponseJson(String text) => jsonDecode(text);
 
 class ApiException implements Exception {
   final String message;
@@ -18,7 +22,12 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  ApiService({http.Client? client}) : _client = client ?? http.Client();
+  ApiService({
+    http.Client? client,
+    Future<void> Function(Duration)? processingWait,
+  }) : _client = client ?? http.Client(),
+       _processingWait = processingWait ?? Future<void>.delayed;
+  final Future<void> Function(Duration) _processingWait;
 
   static const _configuredBase = String.fromEnvironment(
     'FOLIO_API_URL',
@@ -58,6 +67,7 @@ class ApiService {
     String path, {
     String method = 'GET',
     Map<String, dynamic>? body,
+    Future<void>? abortTrigger,
   }) async {
     final generation = _sessionGeneration;
     final uri = Uri.parse('$baseUrl$path');
@@ -70,17 +80,30 @@ class ApiService {
     late http.Response response;
     try {
       final encoded = body == null ? null : jsonEncode(body);
-      response = switch (method) {
-        'POST' => await _client
-            .post(uri, headers: headers, body: encoded)
-            .timeout(const Duration(seconds: 65)),
-        'DELETE' => await _client
-            .delete(uri, headers: headers, body: encoded)
-            .timeout(const Duration(seconds: 30)),
-        _ => await _client
-            .get(uri, headers: headers)
-            .timeout(const Duration(seconds: 30)),
-      };
+      if (method == 'POST' && abortTrigger != null) {
+        final request = http.AbortableRequest(
+          'POST',
+          uri,
+          abortTrigger: abortTrigger,
+        )..headers.addAll(headers);
+        request.body = encoded!;
+        response = await _client
+            .send(request)
+            .then(http.Response.fromStream)
+            .timeout(const Duration(seconds: 65));
+      } else {
+        response = switch (method) {
+          'POST' => await _client
+              .post(uri, headers: headers, body: encoded)
+              .timeout(const Duration(seconds: 65)),
+          'DELETE' => await _client
+              .delete(uri, headers: headers, body: encoded)
+              .timeout(const Duration(seconds: 30)),
+          _ => await _client
+              .get(uri, headers: headers)
+              .timeout(const Duration(seconds: 30)),
+        };
+      }
     } on TimeoutException {
       throw const ApiException(
         'Folio took too long to respond. Please try again.',
@@ -96,23 +119,35 @@ class ApiService {
       throw const ApiException('Session changed. Please sign in again.', 401);
     }
     await _captureSession(response);
-    final decoded = _decode(response.body);
+    final responseText = response.body;
+    Object? parsed;
+    var validJson = true;
+    if (responseText.trim().isNotEmpty) {
+      try {
+        parsed =
+            responseText.length > 32000
+                ? await compute(_parseResponseJson, responseText)
+                : _parseResponseJson(responseText);
+      } catch (_) {
+        validJson = false;
+      }
+    }
+    if (generation != _sessionGeneration) {
+      throw const ApiException('Session changed. Please sign in again.', 401);
+    }
+    final decoded =
+        parsed is Map<String, dynamic> ? parsed : <String, dynamic>{};
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         '${decoded['message'] ?? 'Request failed'}',
         response.statusCode,
       );
     }
-    if (response.body.trim().isNotEmpty) {
-      try {
-        if (jsonDecode(response.body) is! Map<String, dynamic>) {
-          throw const FormatException();
-        }
-      } catch (_) {
-        throw const ApiException(
-          'Folio returned an invalid response. Please try again.',
-        );
-      }
+    if (!validJson ||
+        (responseText.trim().isNotEmpty && parsed is! Map<String, dynamic>)) {
+      throw const ApiException(
+        'Folio returned an invalid response. Please try again.',
+      );
     }
     return decoded;
   }
@@ -218,6 +253,7 @@ class ApiService {
     required String title,
     String category = 'Document',
     ValueChanged<String>? onStage,
+    ValueChanged<String>? onUploaded,
   }) async {
     final generation = _sessionGeneration;
     void ensureCurrent() {
@@ -283,23 +319,77 @@ class ApiService {
       method: 'POST',
       body: {'documentId': documentId},
     );
-    onStage?.call('Reading and summarising…');
     ensureCurrent();
-    try {
-      final result = await _request(
-        '/v1/documents/process',
-        method: 'POST',
-        body: {
-          'documentId': documentId,
-          if (extractedPages.isNotEmpty) 'extractedPages': extractedPages,
-        },
-      );
-      return '${result['status'] ?? 'UPLOADED'}';
-    } on ApiException catch (error) {
-      if (error.statusCode == 401) rethrow;
-      // The original is safely stored. Do not invite a duplicate upload when processing times out.
-      return 'PROCESSING_PENDING';
+    onUploaded?.call(documentId);
+    return processDocumentAutomatically(
+      documentId,
+      extractedPages: extractedPages,
+      onStage: onStage,
+    );
+  }
+
+  Future<String> processDocumentAutomatically(
+    String documentId, {
+    List<Map<String, dynamic>> extractedPages = const [],
+    ValueChanged<String>? onStage,
+  }) {
+    final generation = _sessionGeneration;
+    void ensureCurrent() {
+      if (generation != _sessionGeneration) {
+        throw const ApiException(
+          'Processing stopped because the account changed.',
+          401,
+        );
+      }
     }
+
+    return recoverDocumentProcessing(
+      ensureCurrent: ensureCurrent,
+      wait: _processingWait,
+      onStage: onStage,
+      process: () async {
+        try {
+          final result = await _request(
+            '/v1/documents/process',
+            method: 'POST',
+            body: {
+              'documentId': documentId,
+              if (extractedPages.isNotEmpty) 'extractedPages': extractedPages,
+            },
+          );
+          return '${result['status'] ?? 'PROCESSING_PENDING'}';
+        } on ApiException catch (error) {
+          if ([400, 401, 403, 404, 413, 415, 422].contains(error.statusCode)) {
+            rethrow;
+          }
+          return 'PROCESSING_PENDING';
+        }
+      },
+      inspect: () async {
+        try {
+          final doc =
+              (await fetchDocuments())
+                  .where((d) => d.id == documentId)
+                  .firstOrNull;
+          return doc == null
+              ? null
+              : ProcessingSnapshot(doc.status, doc.summary);
+        } on ApiException catch (error) {
+          if ([401, 403].contains(error.statusCode)) {
+            rethrow;
+          }
+          return null;
+        }
+      },
+    );
+  }
+
+  Future<void> updateDocument(String id, String title, String category) async {
+    await _request(
+      '/v1/documents/update',
+      method: 'POST',
+      body: {'documentId': id, 'title': title, 'category': category},
+    );
   }
 
   Future<String> reprocessDocument(String documentId) async {
@@ -347,7 +437,16 @@ class ApiService {
             'history':
                 history
                     .skip(history.length > 10 ? history.length - 10 : 0)
-                    .map((item) => {'role': item.role, 'text': item.text})
+                    .where((item) => item.quiz == null || item.quiz!.completed)
+                    .map(
+                      (item) => {
+                        'role': item.role,
+                        'text':
+                            item.quiz == null
+                                ? item.text
+                                : _quizHistory(item.quiz!),
+                      },
+                    )
                     .toList(),
             'documentId': documentId,
           });
@@ -370,6 +469,86 @@ class ApiService {
       if (value is Map<String, dynamic>) yield value;
     }
   }
+
+  Future<StudyQuiz> generateQuiz(
+    String documentId, {
+    Future<void>? abortTrigger,
+    int count = 5,
+    String difficulty = 'standard',
+    String focus = '',
+  }) async {
+    final response = await _request(
+      '/v1/ai/quiz',
+      method: 'POST',
+      body: {
+        'documentId': documentId,
+        'count': count,
+        'difficulty': difficulty,
+        'focus': focus,
+      },
+      abortTrigger: abortTrigger,
+    );
+    final items = response['questions'];
+    if (items is! List) {
+      throw const ApiException('Folio returned an invalid study quiz.');
+    }
+    final questions =
+        items
+            .whereType<Map>()
+            .where(
+              (item) =>
+                  item['prompt'] is String &&
+                  item['options'] is List &&
+                  (item['options'] as List).length == 4 &&
+                  (item['options'] as List).every(
+                    (value) => value is String && value.trim().isNotEmpty,
+                  ) &&
+                  item['correctIndex'] is int &&
+                  item['correctIndex'] >= 0 &&
+                  item['correctIndex'] < 4 &&
+                  item['explanation'] is String &&
+                  (item['explanation'] as String).trim().isNotEmpty &&
+                  item['sourceDocumentId'] == documentId &&
+                  item['sourceExcerpt'] is String &&
+                  (item['sourceExcerpt'] as String).trim().isNotEmpty &&
+                  (item['sourcePage'] == null ||
+                      item['sourcePage'] is int && item['sourcePage'] > 0),
+            )
+            .map(
+              (item) => StudyQuestion.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .where(
+              (item) =>
+                  item.prompt.isNotEmpty &&
+                  item.options.length == 4 &&
+                  item.correctIndex >= 0 &&
+                  item.correctIndex < 4,
+            )
+            .toList();
+    if (questions.isEmpty) {
+      throw const ApiException(
+        'Folio could not make a reliable quiz. Try again.',
+      );
+    }
+    return StudyQuiz(questions: questions);
+  }
+
+  String _quizHistory(StudyQuiz quiz) => quiz.questions
+      .map((question) {
+        final selected = question.selectedIndex;
+        if (selected == null ||
+            selected < 0 ||
+            selected >= question.options.length ||
+            question.correctIndex < 0 ||
+            question.correctIndex >= question.options.length) {
+          return '';
+        }
+        final outcome =
+            selected == question.correctIndex ? 'correct' : 'incorrect';
+        return 'Quiz question: ${question.prompt}\nStudent answer: ${question.options[selected]} ($outcome). Correct answer: ${question.options[question.correctIndex]}. Explanation: ${question.explanation}';
+      })
+      .where((line) => line.isNotEmpty)
+      .join('\n\n');
 
   String _mimeType(String fileName) {
     final lower = fileName.toLowerCase();

@@ -29,11 +29,11 @@ void main() {
     expect(find.text('Scan pages'), findsOneWidget);
     expect(find.text('Combine PDFs'), findsOneWidget);
     expect(find.text('Images to PDF'), findsOneWidget);
-    expect(find.text('Extract PDF pages'), findsOneWidget);
+    expect(find.text('Extract, reorder or remove pages'), findsOneWidget);
     expect(find.text('Word to PDF'), findsOneWidget);
   });
 
-  testWidgets('Android vault keeps its existing upload flow', (tester) async {
+  testWidgets('Android vault exposes document tools alongside upload', (tester) async {
     final state = fixtures.stateFor(fixtures.FakeApi(), fixtures.MemoryStore());
     addTearDown(state.dispose);
     await tester.pumpWidget(
@@ -45,7 +45,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Document tools'), findsNothing);
+    expect(find.text('Document tools'), findsOneWidget);
     expect(find.text('Upload'), findsOneWidget);
   });
 }

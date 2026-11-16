@@ -14,7 +14,7 @@ Browser clients have no direct table policies. Vercel routes validate the Folio 
 ## 2. Configure providers
 
 1. Verify a sending domain in Resend and set `EMAIL_FROM` to an address on it.
-2. Set a server-only `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (defaults to `openrouter/free`). Folio requests `data_collection=deny`. Set `OPENROUTER_ZDR=true` only with a compatible zero-retention endpoint; the free router configuration uses `false`. JSON generation requests compatible endpoints using `response_format` and `require_parameters` ([OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)).
+2. For fast, free AI set a server-only `GROQ_API_KEY` (optionally `GROQ_MODEL`, default `llama-3.3-70b-versatile`); Groq then serves summaries, answers and quizzes through its OpenAI-compatible endpoint and the OpenRouter settings are ignored. Groq free-tier limits are per model and per minute, so document summaries send at most 28,000 characters. Without a Groq key, set a server-only `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (defaults to `openrouter/free`). Folio requests `data_collection=deny`. Set `OPENROUTER_ZDR=true` only with a compatible zero-retention endpoint; the free router configuration uses `false`. JSON generation requests compatible endpoints using `response_format` and `require_parameters` ([OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)).
 3. Generate `AUTH_OTP_PEPPER` with at least 32 random characters. Changing it invalidates outstanding codes.
 
 ## 3. Run locally
@@ -34,6 +34,18 @@ npm --prefix frontend run dev
 3. Deploy and run the verification checklist. Never paste the service-role key into browser code, source control, screenshots, or support messages.
 
 ## 5. Deployment verification
+
+### Admin access
+
+Set the server-only `FOLIO_ADMIN_EMAILS` to `anotida@virtukey.co.za` (comma-separated for additional admins). The account must already exist, be verified, and complete normal OTP or passkey sign-in. Missing configuration grants nobody admin access. Configure this value separately for local, Preview and Production environments; deploy again after changing Vercel configuration.
+
+Open `/admin`, or use **Admin** in the desktop sidebar or mobile account menu. Every `/api/v1/admin` request checks the current database session and allowlist, including expiry and revocation. A client-supplied role cannot grant access. Responses are private and uncached.
+
+The read-only admin API reads explicit account, session and AI-activity columns. It never queries document tables/storage or returns passwords, session tokens, document titles/content, prompts, answers or excerpts. It needs no database migration or broader client policies.
+
+Session history shows session creation, expiry and revocation; an active session is not proof that a person is online. Existing AI activity records cover recorded successful Ask AI answers and study quizzes. They exclude document summaries, unrecorded failures, provider retries, token counts and billing costs, so these counts must not be used as a complete provider usage ledger.
+
+Verify 401 for signed-out requests, 403 for normal accounts, searchable/paginated users, user-filtered sessions/AI activity, and absence of private document/authentication fields before publishing.
 
 - Register with a fresh address and confirm one OTP email arrives.
 - Verify, sign out, and confirm password login requires a new OTP.

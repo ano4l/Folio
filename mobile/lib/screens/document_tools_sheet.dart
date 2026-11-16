@@ -9,9 +9,10 @@ import 'package:share_plus/share_plus.dart';
 
 import '../services/app_state.dart';
 import '../services/document_scanner.dart';
+import '../services/study_export.dart';
 import '../theme/app_theme.dart';
 
-enum _Tool { merge, images, pages, word }
+enum _Tool { merge, images, pages, rotate, word }
 
 class DocumentToolsSheet extends StatefulWidget {
   final VoidCallback onScan;
@@ -36,8 +37,8 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
 
   Future<void> _run(_Tool tool) async {
     final extensions = switch (tool) {
-      _Tool.merge || _Tool.pages => ['pdf'],
-      _Tool.images => ['jpg', 'jpeg', 'png', 'heic'],
+      _Tool.merge || _Tool.pages || _Tool.rotate => ['pdf'],
+      _Tool.images => ['jpg', 'jpeg', 'png'],
       _Tool.word => ['docx'],
     };
     try {
@@ -47,7 +48,7 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
         allowMultiple: tool == _Tool.merge || tool == _Tool.images,
       );
       if (!mounted || selection == null) return;
-      final paths =
+      var paths =
           selection.files.map((file) => file.path).whereType<String>().toList();
       if (paths.length != selection.files.length || paths.isEmpty) {
         _message(
@@ -63,10 +64,37 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
         _message('Choose no more than 20 files at a time.');
         return;
       }
+      if (tool == _Tool.merge || tool == _Tool.images) {
+        final ordered = await _orderFiles(paths);
+        if (ordered == null || !mounted) return;
+        paths = ordered;
+      }
       String? pages;
       if (tool == _Tool.pages) {
         pages = await _askPages();
         if (pages == null || !mounted) return;
+      }
+      int degrees = 90;
+      if (tool == _Tool.rotate) {
+        final rotation = await showDialog<int>(
+          context: context,
+          builder:
+              (dialog) => SimpleDialog(
+                title: const Text('Rotate all pages'),
+                children: [
+                  for (final value in [90, 180, 270])
+                    SimpleDialogOption(
+                      onPressed: () => Navigator.pop(dialog, value),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text('$value° clockwise'),
+                      ),
+                    ),
+                ],
+              ),
+        );
+        if (rotation == null || !mounted) return;
+        degrees = rotation;
       }
       setState(() {
         _busy = true;
@@ -76,6 +104,7 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
         _Tool.merge => await DocumentScanner.mergePdfs(paths),
         _Tool.images => await DocumentScanner.imagesToPdf(paths),
         _Tool.pages => await DocumentScanner.extractPages(paths.single, pages!),
+        _Tool.rotate => await DocumentScanner.rotatePdf(paths.single, degrees),
         _Tool.word => await DocumentScanner.wordToPdf(paths.single),
       };
       if (!mounted) return;
@@ -85,12 +114,14 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
           _Tool.merge => 'Combined PDF',
           _Tool.images => 'Images as PDF',
           _Tool.pages => 'Selected pages',
+          _Tool.rotate => 'Rotated PDF',
           _Tool.word => 'Word text as PDF',
         };
         _title.text = switch (tool) {
           _Tool.merge => 'Combined document',
           _Tool.images => 'Photo document',
           _Tool.pages => 'Selected pages',
+          _Tool.rotate => 'Rotated document',
           _Tool.word => selection.files.single.name.replaceFirst(
             RegExp(r'\.docx$', caseSensitive: false),
             '',
@@ -108,6 +139,128 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
               : 'The document tool could not finish. Please try another file.',
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<List<String>?> _orderFiles(List<String> paths) async {
+    final ordered = [...paths];
+    return showModalBottomSheet<List<String>>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder:
+          (sheet) => StatefulBuilder(
+            builder:
+                (context, update) => SizedBox(
+                  height: MediaQuery.sizeOf(context).height * .65,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Choose your page order',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Drag the handles to reorder files before creating your PDF.',
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: ReorderableListView.builder(
+                            buildDefaultDragHandles: false,
+                            itemCount: ordered.length,
+                            onReorder:
+                                (oldIndex, newIndex) => update(() {
+                                  if (newIndex > oldIndex) newIndex--;
+                                  final item = ordered.removeAt(oldIndex);
+                                  ordered.insert(newIndex, item);
+                                }),
+                            itemBuilder:
+                                (context, index) => ListTile(
+                                  key: ValueKey(ordered[index]),
+                                  leading: Text('${index + 1}'),
+                                  title: Text(
+                                    File(ordered[index]).uri.pathSegments.last,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: ReorderableDragStartListener(
+                                    index: index,
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Icon(Icons.drag_handle),
+                                    ),
+                                  ),
+                                ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(sheet, ordered),
+                          child: const Text('Create PDF in this order'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ),
+    );
+  }
+
+  Future<void> _textPdf() async {
+    final text = TextEditingController();
+    final body = await showDialog<String>(
+      context: context,
+      builder:
+          (dialog) => AlertDialog(
+            title: const Text('Text to PDF'),
+            content: TextField(
+              controller: text,
+              minLines: 5,
+              maxLines: 10,
+              maxLength: 20000,
+              decoration: const InputDecoration(
+                labelText: 'Paste or write your text',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (text.text.trim().isNotEmpty) {
+                    Navigator.pop(dialog, text.text.trim());
+                  }
+                },
+                child: const Text('Create PDF'),
+              ),
+            ],
+          ),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), text.dispose);
+    if (body == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _stage = 'Creating your PDF…';
+    });
+    try {
+      final path = await StudyExport.pdf('Notes', body);
+      if (mounted) {
+        setState(() {
+          _resultPath = path;
+          _resultLabel = 'Text as PDF';
+          _title.text = 'My notes';
+        });
+      }
+    } catch (_) {
+      if (mounted) _message('Could not create the PDF. Try a shorter text.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -155,36 +308,20 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
-    setState(() {
-      _busy = true;
-      _stage = 'Saving to your vault…';
-    });
-    try {
-      final status = await context.read<AppState>().uploadDocument(
-        path,
-        title,
-        category: 'Document',
-        onStage: (stage) {
-          if (mounted) setState(() => _stage = stage);
-        },
-      );
-      if (!mounted) return;
-      Navigator.pop(context);
-      if (messenger.mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              status == 'READY'
-                  ? 'PDF saved and ready for questions.'
-                  : 'PDF saved. Open it in Documents to review processing.',
-            ),
+    context.read<AppState>().startDocumentUpload(
+      path,
+      title,
+      category: 'Document',
+    );
+    Navigator.pop(context);
+    if (messenger.mounted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'PDF uploading. Keep Folio open and track its summary in Documents.',
           ),
-        );
-      }
-    } catch (error) {
-      if (mounted) _message('Could not save the PDF: $error');
-    } finally {
-      if (mounted) setState(() => _busy = false);
+        ),
+      );
     }
   }
 
@@ -239,7 +376,7 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
                 const SizedBox(height: 6),
                 Text(
                   _resultPath == null
-                      ? 'Prepare paperwork on this iPhone or iPad, then save it for Folio to analyse.'
+                      ? 'Prepare paperwork on your device, then save it for Folio to analyse.'
                       : '$_resultLabel · prepared on this device',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -282,9 +419,21 @@ class _DocumentToolsSheetState extends State<DocumentToolsSheet> {
                   ),
                   _ToolRow(
                     icon: CupertinoIcons.doc_text,
-                    title: 'Extract PDF pages',
-                    detail: 'Keep selected pages in a new file',
+                    title: 'Extract, reorder or remove pages',
+                    detail: 'Enter any order; omitted pages are removed',
                     onTap: _busy ? null : () => _run(_Tool.pages),
+                  ),
+                  _ToolRow(
+                    icon: Icons.rotate_90_degrees_cw,
+                    title: 'Rotate PDF pages',
+                    detail: 'Correct orientation in a new copy',
+                    onTap: _busy ? null : () => _run(_Tool.rotate),
+                  ),
+                  _ToolRow(
+                    icon: Icons.edit_note_outlined,
+                    title: 'Text to PDF',
+                    detail: 'Make a clean PDF from notes or pasted text',
+                    onTap: _busy ? null : _textPdf,
                   ),
                   _ToolRow(
                     icon: CupertinoIcons.doc_richtext,

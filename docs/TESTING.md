@@ -6,11 +6,15 @@ Run from `frontend/` with a Node.js version that supports native TypeScript stri
 
 ```sh
 npx tsc --noEmit
-node --experimental-strip-types --test lib/server/document-pages.test.ts lib/server/openrouter.test.ts
+node --experimental-strip-types --test lib/server/document-pages.test.ts lib/server/openrouter.test.ts lib/server/study-quiz.test.ts lib/server/quiz-provider.test.ts lib/server/admin-policy.test.ts
+node --test lib/server/admin-route.test.mjs
+node --experimental-strip-types --test src/components/workspace/workspace.test.ts
 npm run build
 ```
 
-The tests cover page metadata and provider retry/error handling. A successful build does not verify live email delivery, storage access, or model answer quality.
+Server tests cover page metadata, provider retry/error handling, quiz validation and source grounding. Workspace tests cover encrypted storage, revision scheduling, deadline parsing and evidence exports. The Markdown renderer tests also cover unsafe content and citation identity. A successful build does not verify live email delivery, storage access, or model answer quality.
+
+Admin tests execute the actual route and authentication code against an isolated database fixture. They check expired/revoked sessions, unverified accounts, non-admin rejection, a missing allowlist, pagination, account filters, overview counts, uncached responses and exclusion of private document/authentication fields. Desktop and phone UI checks should also cover search, account drilldown, keyboard tabs, pagination, stale-data removal after access denial and horizontal table scrolling. Use clearly labelled synthetic fixtures for browser captures; they do not establish production usage totals.
 
 ## Mobile
 

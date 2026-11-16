@@ -1,3 +1,6 @@
+import 'package:share_plus/share_plus.dart';
+import '../services/study_export.dart';
+import 'document_reader_screen.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,18 +9,29 @@ import '../services/share_text.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/document.dart';
+import '../models/study.dart';
 import '../services/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/ai_content.dart';
 import '../widgets/folio_motion.dart';
 
 class DocumentChatPage extends StatelessWidget {
-  const DocumentChatPage({super.key, this.document});
+  const DocumentChatPage({
+    super.key,
+    this.document,
+    this.studySpaceId,
+    this.studyMode = false,
+  });
   final Document? document;
+  final String? studySpaceId;
+  final bool studyMode;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(
-        document?.title ?? 'Compare documents',
+        studyMode
+            ? 'Study · ${document?.title ?? ''}'
+            : document?.title ?? 'Compare documents',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -26,7 +40,12 @@ class DocumentChatPage extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
-          child: AskAiScreen(documentId: document?.id, conversation: true),
+          child: AskAiScreen(
+            documentId: document?.id,
+            conversation: true,
+            studySpaceId: studySpaceId,
+            studyMode: studyMode,
+          ),
         ),
       ),
     ),
@@ -34,9 +53,17 @@ class DocumentChatPage extends StatelessWidget {
 }
 
 class AskAiScreen extends StatefulWidget {
-  const AskAiScreen({super.key, this.documentId, this.conversation = false});
+  const AskAiScreen({
+    super.key,
+    this.documentId,
+    this.conversation = false,
+    this.studySpaceId,
+    this.studyMode = false,
+  });
   final String? documentId;
   final bool conversation;
+  final String? studySpaceId;
+  final bool studyMode;
   @override
   State<AskAiScreen> createState() => _AskAiScreenState();
 }
@@ -125,7 +152,7 @@ class _AskAiScreenState extends State<AskAiScreen> {
         if (mounted) setState(() => _speaking = null);
       });
       setState(() => _speaking = message.id);
-      await tts.speak(AiContent.plainText(message.text));
+      await tts.speak(_messageText(message));
     } catch (_) {
       if (mounted) {
         setState(() => _speaking = null);
@@ -151,9 +178,10 @@ class _AskAiScreenState extends State<AskAiScreen> {
   }
 
   void _changed() {
+    if (!widget.conversation) return;
     final messages = _state!.messagesFor(widget.documentId);
     final revision =
-        '${messages.length}:${messages.lastOrNull?.text.length}:${_state!.isChatBusy(widget.documentId)}';
+        '${messages.length}:${messages.lastOrNull?.text.length}:${messages.expand((m) => m.quiz?.questions ?? <StudyQuestion>[]).where((q) => q.selectedIndex != null).length}:${_state!.isChatBusy(widget.documentId)}';
     if (_revision == revision) return;
     _revision = revision;
     if (_follow) _toBottom();
@@ -190,6 +218,11 @@ class _AskAiScreenState extends State<AskAiScreen> {
     _toBottom(animate: true);
   }
 
+  void _askStudy(String prompt) {
+    _input.text = prompt;
+    _send();
+  }
+
   @override
   void dispose() {
     _composerFocus.removeListener(_focusChanged);
@@ -204,7 +237,28 @@ class _AskAiScreenState extends State<AskAiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    context.select<AppState, List<Object?>>(
+      (s) =>
+          widget.conversation || s.navigationIndex == 2
+              ? [
+                ...s.documents,
+                if (widget.conversation) ...[
+                  s.cacheError,
+                  s.isChatBusy(widget.documentId),
+                  s.chatError(widget.documentId),
+                  ...s.messagesFor(widget.documentId),
+                  for (final message in s.messagesFor(widget.documentId))
+                    for (final question
+                        in message.quiz?.questions ?? <StudyQuestion>[])
+                      question.selectedIndex,
+                ] else ...[
+                  for (final doc in s.documents)
+                    s.messagesFor(doc.id).where((m) => m.role == 'user').length,
+                ],
+              ]
+              : const <Object?>[],
+    );
+    final state = context.read<AppState>();
     if (!widget.conversation) return _hub(state);
     final colors = Theme.of(context).colorScheme;
     final doc =
@@ -237,41 +291,79 @@ class _AskAiScreenState extends State<AskAiScreen> {
                 onPressed: () => setState(() => _savedOnly = !_savedOnly),
                 icon: const Icon(Icons.bookmarks_outlined),
               ),
-              IconButton(
-                tooltip: 'Clear conversation',
-                onPressed:
-                    all.isEmpty
-                        ? null
-                        : () async {
-                          final clear = await showDialog<bool>(
-                            context: context,
-                            builder:
-                                (context) => AlertDialog(
-                                  title: const Text('Clear this conversation?'),
-                                  content: const Text(
-                                    'This removes its saved answers and messages from this device. Your document is kept.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed:
-                                          () => Navigator.pop(context, false),
-                                      child: const Text('Keep'),
-                                    ),
-                                    TextButton(
-                                      onPressed:
-                                          () => Navigator.pop(context, true),
-                                      child: const Text('Clear'),
-                                    ),
-                                  ],
-                                ),
-                          );
-                          if (clear == true) state.clearChat(widget.documentId);
-                        },
-                icon: const Icon(Icons.delete_outline),
-              ),
+              _conversationMenu(state, all),
             ],
           ),
         ),
+        if (widget.studyMode && widget.documentId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Learn and practise from this source',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const Text(
+                  'Quiz questions sample readable text; check important points in the original.',
+                  style: TextStyle(fontSize: 11, color: AppColors.slate),
+                ),
+                const SizedBox(height: 4),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.lightbulb_outline, size: 18),
+                        label: const Text('Explain simply'),
+                        onPressed:
+                            busy || !available
+                                ? null
+                                : () => _askStudy(
+                                  'Explain the main ideas in this document in plain language. Cite the source passages you use.',
+                                ),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.record_voice_over_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('Teach step by step'),
+                        onPressed:
+                            busy || !available
+                                ? null
+                                : () => _askStudy(
+                                  'Teach me the most important idea in this document step by step. Ask me a short check-in question before moving on, and cite the source.',
+                                ),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        avatar: const Icon(Icons.summarize_outlined, size: 18),
+                        label: const Text('Summarise'),
+                        onPressed:
+                            busy || !available
+                                ? null
+                                : () => _askStudy(
+                                  'Summarise the key ideas in this document as concise study notes. Cite each source passage.',
+                                ),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        avatar: const Icon(Icons.quiz_outlined, size: 18),
+                        label: Text(busy ? 'Working…' : 'Quiz me'),
+                        onPressed:
+                            busy || !available
+                                ? null
+                                : () => _configureQuiz(state),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (state.cacheError.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(12),
@@ -498,6 +590,8 @@ class _AskAiScreenState extends State<AskAiScreen> {
                 Text('Reading your sources…'),
               ],
             )
+          else if (message.quiz != null)
+            _quiz(message, state)
           else
             AiContent(
               text: message.text,
@@ -544,6 +638,15 @@ class _AskAiScreenState extends State<AskAiScreen> {
           if (message.role != 'streaming' && message.text.isNotEmpty)
             Wrap(
               children: [
+                if (widget.studyMode &&
+                    widget.studySpaceId != null &&
+                    message.quiz == null &&
+                    message.sources.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Save as study note',
+                    onPressed: () => _saveAsNote(message, state),
+                    icon: const Icon(Icons.note_add_outlined, size: 18),
+                  ),
                 IconButton(
                   tooltip:
                       _speaking == message.id
@@ -561,7 +664,7 @@ class _AskAiScreenState extends State<AskAiScreen> {
                   tooltip: 'Copy answer',
                   onPressed: () async {
                     await Clipboard.setData(
-                      ClipboardData(text: AiContent.plainText(message.text)),
+                      ClipboardData(text: _messageText(message)),
                     );
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -583,10 +686,7 @@ class _AskAiScreenState extends State<AskAiScreen> {
                 IconButton(
                   tooltip: 'Share answer',
                   onPressed:
-                      () => ShareText.show(
-                        context,
-                        AiContent.plainText(message.text),
-                      ),
+                      () => ShareText.show(context, _messageText(message)),
                   icon: const Icon(Icons.ios_share, size: 18),
                 ),
               ],
@@ -594,6 +694,238 @@ class _AskAiScreenState extends State<AskAiScreen> {
         ],
       ),
     );
+  }
+
+  Widget _quiz(ChatMessage message, AppState state) {
+    final quiz = message.quiz!;
+    final score =
+        quiz.questions
+            .where(
+              (question) => question.selectedIndex == question.correctIndex,
+            )
+            .length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(message.text, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        for (var qIndex = 0; qIndex < quiz.questions.length; qIndex++)
+          _QuizQuestionCard(
+            question: quiz.questions[qIndex],
+            number: qIndex + 1,
+            onSelect:
+                (choice) => state.answerStudyQuestion(
+                  widget.documentId!,
+                  message.id,
+                  qIndex,
+                  choice,
+                ),
+            onSource:
+                (question) => _source({
+                  'documentId': question.sourceDocumentId,
+                  'doc': question.sourceTitle,
+                  'page': question.sourcePage?.toString() ?? '',
+                  'detail':
+                      question.sourcePage == null
+                          ? 'Source document'
+                          : 'Page ${question.sourcePage}',
+                  'excerpt': question.sourceExcerpt,
+                }, state),
+          ),
+        if (quiz.completed)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Round complete · $score of ${quiz.questions.length} correct. Revisit any source-linked explanation below.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (quiz.completed)
+          Wrap(
+            spacing: 8,
+            children: [
+              if (quiz.questions.any((q) => q.selectedIndex != q.correctIndex))
+                TextButton.icon(
+                  onPressed:
+                      () => state.retryMissedQuiz(widget.documentId!, quiz),
+                  icon: const Icon(Icons.replay),
+                  label: const Text('Practise missed questions'),
+                ),
+              TextButton.icon(
+                onPressed:
+                    state.isChatBusy(widget.documentId)
+                        ? null
+                        : () => _configureQuiz(state),
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('New quiz'),
+              ),
+              if (widget.studySpaceId != null)
+                TextButton.icon(
+                  onPressed: () {
+                    try {
+                      for (final q in quiz.questions) {
+                        state.addStudyCard(
+                          spaceId: widget.studySpaceId!,
+                          front: q.prompt,
+                          back:
+                              '${q.options[q.correctIndex]}\n\n${q.explanation}',
+                          documentId: q.sourceDocumentId,
+                          sourcePage: q.sourcePage,
+                          sourceExcerpt: q.sourceExcerpt,
+                        );
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Quiz questions saved as revision cards.',
+                          ),
+                        ),
+                      );
+                    } on FormatException catch (e) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(e.message)));
+                    }
+                  },
+                  icon: const Icon(Icons.style_outlined),
+                  label: const Text('Save revision cards'),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Future<void> _configureQuiz(AppState state) async {
+    var count = 5;
+    var difficulty = 'standard';
+    final focus = TextEditingController();
+    final start = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialog) => StatefulBuilder(
+            builder:
+                (context, update) => AlertDialog(
+                  title: const Text('Make your quiz'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Length'),
+                        const SizedBox(height: 8),
+                        SegmentedButton<int>(
+                          segments: const [
+                            ButtonSegment(value: 3, label: Text('3')),
+                            ButtonSegment(value: 5, label: Text('5')),
+                            ButtonSegment(value: 8, label: Text('8')),
+                          ],
+                          selected: {count},
+                          onSelectionChanged:
+                              (v) => update(() => count = v.single),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: difficulty,
+                          decoration: const InputDecoration(
+                            labelText: 'Difficulty',
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'foundation',
+                              child: Text('Foundation'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'standard',
+                              child: Text('Understanding'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'challenge',
+                              child: Text('Application'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) update(() => difficulty = v);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: focus,
+                          maxLength: 300,
+                          decoration: const InputDecoration(
+                            labelText: 'Focus topic (optional)',
+                            hintText: 'e.g. database normalisation',
+                          ),
+                        ),
+                        const Text(
+                          'Uses sampled readable passages. Check source explanations before treating answers as exam guidance.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialog),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: const Text('Start quiz'),
+                    ),
+                  ],
+                ),
+          ),
+    );
+    if (start == true && mounted) {
+      state.generateQuiz(
+        widget.documentId!,
+        count: count,
+        difficulty: difficulty,
+        focus: focus.text.trim(),
+      );
+    }
+    Future<void>.delayed(const Duration(milliseconds: 400), focus.dispose);
+  }
+
+  void _saveAsNote(ChatMessage message, AppState state) {
+    final source = message.sources.first;
+    final text = _messageText(message).trim();
+    final firstLine = text.split('\n').first.trim();
+    try {
+      state.saveStudyNote(
+        spaceId: widget.studySpaceId!,
+        title:
+            firstLine.length > 80
+                ? '${firstLine.substring(0, 77)}…'
+                : firstLine,
+        body: text,
+        documentId: source['documentId'] ?? widget.documentId!,
+        sourcePage: int.tryParse(source['page'] ?? ''),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to study notes with its source.')),
+      );
+    } on FormatException catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   void _source(Map<String, String> source, AppState state) {
@@ -621,6 +953,27 @@ class _AskAiScreenState extends State<AskAiScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(source['detail'] ?? 'Source document'),
+                    if (doc != null)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            this.context,
+                            MaterialPageRoute<void>(
+                              builder:
+                                  (_) => DocumentReaderScreen(
+                                    document: doc,
+                                    initialPage: int.tryParse(
+                                      source['page'] ?? '',
+                                    ),
+                                    studySpaceId: widget.studySpaceId,
+                                  ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.menu_book_outlined),
+                        label: const Text('Read in context'),
+                      ),
                     const SizedBox(height: 20),
                     SelectableText(
                       source['excerpt']?.isNotEmpty == true
@@ -635,10 +988,99 @@ class _AskAiScreenState extends State<AskAiScreen> {
     );
   }
 
-  Widget _hub(AppState state) => ListView(
-    key: const PageStorageKey('chat-hub-scroll'),
-    padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-    children: [
+  String _messageText(ChatMessage message) {
+    if (message.quiz == null) return AiContent.plainText(message.text);
+    final out = StringBuffer('${message.text}\n\n');
+    for (final q in message.quiz!.questions) {
+      out.writeln(q.prompt);
+      for (var i = 0; i < q.options.length; i++) {
+        out.writeln('${String.fromCharCode(65 + i)}. ${q.options[i]}');
+      }
+      if (q.selectedIndex != null) {
+        out.writeln(
+          'Your answer: ${q.options[q.selectedIndex!]}\nCorrect answer: ${q.options[q.correctIndex]}\n${q.explanation}',
+        );
+      }
+      out.writeln(
+        'Source: ${q.sourceTitle}${q.sourcePage == null ? '' : ' · page ${q.sourcePage}'}\n',
+      );
+    }
+    return out.toString();
+  }
+
+  Widget _conversationMenu(
+    AppState state,
+    List<ChatMessage> messages,
+  ) => PopupMenuButton<String>(
+    tooltip: 'Conversation actions',
+    enabled: messages.isNotEmpty,
+    itemBuilder:
+        (_) => const [
+          PopupMenuItem(value: 'export', child: Text('Export conversation')),
+          PopupMenuItem(value: 'clear', child: Text('Clear conversation')),
+        ],
+    onSelected: (action) async {
+      if (action == 'clear') {
+        final owner = state.user?.id;
+        final clear = await showDialog<bool>(
+          context: context,
+          builder:
+              (dialog) => AlertDialog(
+                title: const Text('Clear this conversation?'),
+                content: const Text(
+                  'This removes its saved answers, quizzes and messages from this device. Your document and study notes are kept.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialog),
+                    child: const Text('Keep'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialog, true),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+        );
+        if (clear == true && mounted && state.user?.id == owner) {
+          state.clearChat(widget.documentId);
+        }
+      } else {
+        final out = StringBuffer('# Folio conversation\n\n');
+        for (final message in messages.where((m) => m.role != 'streaming')) {
+          out.writeln(
+            '## ${message.role == 'user' ? 'You' : 'Folio'}${message.incomplete ? ' (incomplete)' : ''}\n\n${_messageText(message)}\n',
+          );
+          for (final source in message.sources) {
+            out.writeln(
+              'Source: ${source['doc']} · ${source['detail']}\n${source['excerpt'] ?? ''}\n',
+            );
+          }
+        }
+        try {
+          final path = await StudyExport.textFile(out.toString(), 'md');
+          if (!mounted) return;
+          final box = context.findRenderObject() as RenderBox;
+          await Share.shareXFiles(
+            [XFile(path, mimeType: 'text/markdown')],
+            subject: 'Folio conversation',
+            sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+          );
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Conversation export could not finish.'),
+              ),
+            );
+          }
+        }
+      }
+    },
+  );
+
+  Widget _hub(AppState state) {
+    final headers = <Widget>[
       Text('Ask Folio', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 8),
       const Text(
@@ -652,8 +1094,34 @@ class _AskAiScreenState extends State<AskAiScreen> {
           child: const Text('Open documents'),
         ),
       ],
-      for (final doc in state.documents)
-        Padding(
+    ];
+    final footer = <Widget>[
+      const SizedBox(height: 16),
+      OutlinedButton.icon(
+        onPressed:
+            state.documents.isEmpty
+                ? null
+                : () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DocumentChatPage(),
+                  ),
+                ),
+        icon: const Icon(Icons.library_books_outlined),
+        label: const Text('Compare across all documents'),
+      ),
+    ];
+    return ListView.builder(
+      key: const PageStorageKey('chat-hub-scroll'),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+      itemCount: headers.length + state.documents.length + footer.length,
+      itemBuilder: (context, index) {
+        if (index < headers.length) return headers[index];
+        final rowIndex = index - headers.length;
+        if (rowIndex >= state.documents.length) {
+          return footer[rowIndex - state.documents.length];
+        }
+        final doc = state.documents[rowIndex];
+        return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
@@ -679,20 +1147,179 @@ class _AskAiScreenState extends State<AskAiScreen> {
                   ),
                 ),
           ),
-        ),
-      const SizedBox(height: 16),
-      OutlinedButton.icon(
-        onPressed:
-            state.documents.isEmpty
-                ? null
-                : () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const DocumentChatPage(),
+        );
+      },
+    );
+  }
+}
+
+class _QuizQuestionCard extends StatelessWidget {
+  const _QuizQuestionCard({
+    required this.question,
+    required this.number,
+    required this.onSelect,
+    required this.onSource,
+  });
+  final StudyQuestion question;
+  final int number;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<StudyQuestion> onSource;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final selected = question.selectedIndex;
+    final correct = selected != null && selected == question.correctIndex;
+    final accent =
+        selected == null
+            ? theme.colorScheme.primary
+            : correct
+            ? const Color(0xFF16734B)
+            : theme.colorScheme.error;
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'QUESTION $number',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.teal,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            question.prompt,
+            style: theme.textTheme.titleSmall?.copyWith(height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < question.options.length; index++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Material(
+                color:
+                    selected == null
+                        ? theme.colorScheme.surface
+                        : index == question.correctIndex
+                        ? const Color(0xFFE7F5EF)
+                        : index == selected
+                        ? theme.colorScheme.errorContainer.withValues(
+                          alpha: .65,
+                        )
+                        : theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(13),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(13),
+                  onTap: selected == null ? () => onSelect(index) : null,
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color:
+                            selected == null
+                                ? theme.colorScheme.outlineVariant
+                                : index == question.correctIndex
+                                ? const Color(0xFF90C9AC)
+                                : index == selected
+                                ? theme.colorScheme.error.withValues(alpha: .45)
+                                : theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color:
+                                selected != null &&
+                                        index == question.correctIndex
+                                    ? const Color(0xFF16734B)
+                                    : selected == index
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.surfaceContainerHighest,
+                          ),
+                          child:
+                              selected != null && index == question.correctIndex
+                                  ? const Icon(
+                                    Icons.check,
+                                    size: 15,
+                                    color: Colors.white,
+                                  )
+                                  : selected == index
+                                  ? const Icon(
+                                    Icons.close,
+                                    size: 15,
+                                    color: Colors.white,
+                                  )
+                                  : Text(
+                                    String.fromCharCode(65 + index),
+                                    style: theme.textTheme.labelSmall,
+                                  ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            question.options[index],
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-        icon: const Icon(Icons.library_books_outlined),
-        label: const Text('Compare across all documents'),
+              ),
+            ),
+          if (selected != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  correct ? Icons.check_circle_outline : Icons.info_outline,
+                  color: accent,
+                  size: 19,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${correct ? 'That’s right.' : 'Not quite.'} ${question.explanation}',
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => onSource(question),
+                icon: const Icon(Icons.menu_book_outlined, size: 17),
+                label: Text(
+                  question.sourcePage == null
+                      ? 'Check source · ${question.sourceTitle}'
+                      : 'Check source · page ${question.sourcePage}',
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
-    ],
-  );
+    );
+  }
 }

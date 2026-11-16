@@ -1,0 +1,15 @@
+name: folio_documents
+description: Folio on-device iOS scanning, OCR and PDF operations.
+version: 1.0.0
+publish_to: none
+environment:
+  sdk: '>=3.7.2 <4.0.0'
+  flutter: '>=3.22.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: FolioDocumentsPlugin

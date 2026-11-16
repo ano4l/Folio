@@ -23,6 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (action === "complete") return await complete(request, user.id);
     if (action === "process") return await process(request, user.id);
     if (action === "restore") return await restore(request, user.id);
+    if (action === "update") return await updateMetadata(request, user.id);
     if (action === "source") return await source(request, user.id);
     throw new ApiError(404, "Not found");
   } catch (error) { return jsonError(error); }
@@ -128,4 +129,20 @@ function extensionFor(mimeType: string) {
   if (mimeType === "application/pdf") return "pdf";
   if (mimeType.includes("wordprocessingml")) return "docx";
   return mimeType === "image/png" ? "png" : "jpg";
+}
+
+async function updateMetadata(request: NextRequest, userId: string) {
+  const body = await readJson<{ documentId?: unknown; title?: unknown; category?: unknown }>(request);
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError(400, "Invalid document details");
+  if (typeof body.documentId !== "string" || !body.documentId || body.documentId.length > 80
+    || typeof body.title !== "string" || !body.title.trim() || body.title.length > 240
+    || typeof body.category !== "string" || !body.category.trim() || body.category.length > 80) {
+    throw new ApiError(400, "Enter a title and category for this document");
+  }
+  const { data, error } = await supabaseAdmin().from("vault_documents")
+    .update({ title: body.title.trim(), category: body.category.trim(), updated_at: new Date().toISOString() })
+    .eq("id", body.documentId).eq("user_id", userId).is("deleted_at", null).select("id").maybeSingle();
+  if (error) throw new Error(`Unable to update document: ${error.code}`);
+  if (!data) throw new ApiError(404, "Document not found");
+  return NextResponse.json({ documentId: data.id, updated: true });
 }

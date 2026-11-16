@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -35,7 +36,10 @@ class AppTheme {
         height: 1.12,
         letterSpacing: -.45,
       );
-  static ThemeData get light {
+  static final ThemeData _light = _createLight();
+  static ThemeData get light =>
+      _light.copyWith(platform: defaultTargetPlatform);
+  static ThemeData _createLight() {
     final base = ThemeData(
       useMaterial3: true,
       // Share Android's metrics and ink treatment without changing the real

@@ -1,0 +1,571 @@
+{
+  "info": {
+    "_postman_id": "785621c7-c7f1-4f44-a019-b13d57587fbc",
+    "name": "Folio — AI API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "AI endpoints only. Import the companion environment, supply a valid FOLIO_SESSION cookie and a READY document ID. Requests send real AI work and may record usage. No authentication, document-management or admin endpoints are included. See README.md for timing and setup."
+  },
+  "item": [
+    {
+      "name": "Document assistant — POST /v1/ai/ask",
+      "item": [
+        {
+          "name": "01 — Greeting (auth/connectivity baseline)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('NDJSON response', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/x-ndjson'));",
+                  "  const events = pm.response.text().trim().split(/\\r?\\n/).filter(Boolean).map(line => JSON.parse(line));",
+                  "  let answer = '';",
+                  "  events.forEach(e => { if (e.type === 'delta') answer += e.text; if (e.type === 'replace') answer = e.text; });",
+                  "  const done = events.find(e => e.type === 'done');",
+                  "  pm.test('Nonempty answer and final done event', () => {",
+                  "    pm.expect(answer.trim()).not.to.equal('');",
+                  "    pm.expect(events[events.length - 1].type).to.equal('done');",
+                  "    pm.expect(done.citations).to.be.an('array');",
+                  "  });",
+                  "  ",
+                  "  console.info('Completion model', done && done.model, 'citationCount', done && done.citations.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-ndjson"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Hello\",\n  \"history\": [],\n  \"documentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "ask"
+              ]
+            },
+            "description": "Authenticated baseline; greeting bypasses the AI provider. A quick result here does not prove provider availability."
+          },
+          "response": []
+        },
+        {
+          "name": "02 — Ask one document",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');",
+                  "if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('documentId') || '')) throw new Error('Set documentId to a READY document owned by this account.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('NDJSON response', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/x-ndjson'));",
+                  "  const events = pm.response.text().trim().split(/\\r?\\n/).filter(Boolean).map(line => JSON.parse(line));",
+                  "  let answer = '';",
+                  "  events.forEach(e => { if (e.type === 'delta') answer += e.text; if (e.type === 'replace') answer = e.text; });",
+                  "  const done = events.find(e => e.type === 'done');",
+                  "  pm.test('Nonempty answer and final done event', () => {",
+                  "    pm.expect(answer.trim()).not.to.equal('');",
+                  "    pm.expect(events[events.length - 1].type).to.equal('done');",
+                  "    pm.expect(done.citations).to.be.an('array');",
+                  "  });",
+                  "  pm.test('Provider returned a grounded answer, not an abstention', () => {",
+                  "    pm.expect(done.model).to.be.a('string').and.not.empty;",
+                  "    pm.expect(done.citations.length).to.be.above(0);",
+                  "    const numbers = [...answer.matchAll(/\\[SOURCE:(\\d+)\\]/g)].map(m => Number(m[1]));",
+                  "    pm.expect(numbers.length).to.be.above(0);",
+                  "    numbers.forEach(n => pm.expect(done.citations.some(c => c.number === n)).to.equal(true));",
+                  "    done.citations.forEach(c => { pm.expect(c.documentId).to.be.a('string').and.not.empty; pm.expect(c.excerpt).to.be.a('string').and.not.empty; });",
+                  "  });",
+                  "  console.info('Completion model', done && done.model, 'citationCount', done && done.citations.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-ndjson"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"{{question}}\",\n  \"history\": [],\n  \"documentId\": \"{{documentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "ask"
+              ]
+            },
+            "description": "Uses one READY document. Tests fail when HTTP 200 contains an abstention or missing citations."
+          },
+          "response": []
+        },
+        {
+          "name": "03 — Ask across the vault",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('NDJSON response', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/x-ndjson'));",
+                  "  const events = pm.response.text().trim().split(/\\r?\\n/).filter(Boolean).map(line => JSON.parse(line));",
+                  "  let answer = '';",
+                  "  events.forEach(e => { if (e.type === 'delta') answer += e.text; if (e.type === 'replace') answer = e.text; });",
+                  "  const done = events.find(e => e.type === 'done');",
+                  "  pm.test('Nonempty answer and final done event', () => {",
+                  "    pm.expect(answer.trim()).not.to.equal('');",
+                  "    pm.expect(events[events.length - 1].type).to.equal('done');",
+                  "    pm.expect(done.citations).to.be.an('array');",
+                  "  });",
+                  "  pm.test('Provider returned a grounded answer, not an abstention', () => {",
+                  "    pm.expect(done.model).to.be.a('string').and.not.empty;",
+                  "    pm.expect(done.citations.length).to.be.above(0);",
+                  "    const numbers = [...answer.matchAll(/\\[SOURCE:(\\d+)\\]/g)].map(m => Number(m[1]));",
+                  "    pm.expect(numbers.length).to.be.above(0);",
+                  "    numbers.forEach(n => pm.expect(done.citations.some(c => c.number === n)).to.equal(true));",
+                  "    done.citations.forEach(c => { pm.expect(c.documentId).to.be.a('string').and.not.empty; pm.expect(c.excerpt).to.be.a('string').and.not.empty; });",
+                  "  });",
+                  "  console.info('Completion model', done && done.model, 'citationCount', done && done.citations.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-ndjson"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"{{question}}\",\n  \"history\": [],\n  \"documentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "ask"
+              ]
+            },
+            "description": "Retrieves evidence from the signed-in user’s READY documents."
+          },
+          "response": []
+        },
+        {
+          "name": "04 — Follow-up with explicit history",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');",
+                  "if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('documentId') || '')) throw new Error('Set documentId to a READY document owned by this account.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('NDJSON response', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/x-ndjson'));",
+                  "  const events = pm.response.text().trim().split(/\\r?\\n/).filter(Boolean).map(line => JSON.parse(line));",
+                  "  let answer = '';",
+                  "  events.forEach(e => { if (e.type === 'delta') answer += e.text; if (e.type === 'replace') answer = e.text; });",
+                  "  const done = events.find(e => e.type === 'done');",
+                  "  pm.test('Nonempty answer and final done event', () => {",
+                  "    pm.expect(answer.trim()).not.to.equal('');",
+                  "    pm.expect(events[events.length - 1].type).to.equal('done');",
+                  "    pm.expect(done.citations).to.be.an('array');",
+                  "  });",
+                  "  pm.test('Provider returned a grounded answer, not an abstention', () => {",
+                  "    pm.expect(done.model).to.be.a('string').and.not.empty;",
+                  "    pm.expect(done.citations.length).to.be.above(0);",
+                  "    const numbers = [...answer.matchAll(/\\[SOURCE:(\\d+)\\]/g)].map(m => Number(m[1]));",
+                  "    pm.expect(numbers.length).to.be.above(0);",
+                  "    numbers.forEach(n => pm.expect(done.citations.some(c => c.number === n)).to.equal(true));",
+                  "    done.citations.forEach(c => { pm.expect(c.documentId).to.be.a('string').and.not.empty; pm.expect(c.excerpt).to.be.a('string').and.not.empty; });",
+                  "  });",
+                  "  console.info('Completion model', done && done.model, 'citationCount', done && done.citations.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-ndjson"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Explain that in simpler terms, using the document.\",\n  \"history\": [\n    {\n      \"role\": \"user\",\n      \"text\": \"{{question}}\"\n    },\n    {\n      \"role\": \"assistant\",\n      \"text\": \"{{previousAnswer}}\"\n    }\n  ],\n  \"documentId\": \"{{documentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "ask"
+              ]
+            },
+            "description": "Set previousAnswer to a real earlier answer before sending. History is context; source documents remain the evidence."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Study quizzes — POST /v1/ai/quiz",
+      "item": [
+        {
+          "name": "05 — Generate 3 foundation questions",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');",
+                  "if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('documentId') || '')) throw new Error('Set documentId to a READY document owned by this account.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  const request = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "  pm.test('Quiz includes source-backed four-option questions', () => {",
+                  "    pm.expect(data.model).to.be.a('string').and.not.empty;",
+                  "    pm.expect(data.questions).to.be.an('array').and.not.empty;",
+                  "    pm.expect(data.questions.length).to.be.at.most(request.count);",
+                  "    pm.expect(data.requestedCount).to.equal(request.count);",
+                  "    pm.expect(data.difficulty).to.equal(request.difficulty);",
+                  "    data.questions.forEach(q => {",
+                  "      pm.expect(q.prompt).to.be.a('string').and.not.empty;",
+                  "      pm.expect(q.options).to.be.an('array').with.lengthOf(4);",
+                  "      q.options.forEach(option => pm.expect(option).to.be.a('string').and.not.empty);",
+                  "      pm.expect(Number.isInteger(q.correctIndex)).to.equal(true);",
+                  "      pm.expect(q.correctIndex).to.be.within(0, 3);",
+                  "      pm.expect(q.explanation).to.be.a('string').and.not.empty;",
+                  "      pm.expect(q.sourceDocumentId).to.equal(request.documentId);",
+                  "      pm.expect(q.sourceExcerpt).to.be.a('string').and.not.empty;",
+                  "    });",
+                  "  });",
+                  "  console.info('Quiz model', data.model, 'questionCount', data.questions.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"{{documentId}}\",\n  \"count\": 3,\n  \"difficulty\": \"foundation\",\n  \"focus\": \"{{focus}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/quiz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "quiz"
+              ]
+            },
+            "description": "Requires a READY document with sufficient readable text. Supported counts: 3, 5, 8. Difficulties: foundation, standard, challenge. Focus is optional, up to 300 characters. A quiz can contain fewer supported questions than requested."
+          },
+          "response": []
+        },
+        {
+          "name": "06 — Generate 5 standard questions",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sessionCookie')) throw new Error('Set sessionCookie to your current FOLIO_SESSION cookie value (value only).');",
+                  "if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('documentId') || '')) throw new Error('Set documentId to a READY document owned by this account.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.info('Folio AI', pm.info.requestName, 'status', pm.response.code, 'elapsedMs', pm.response.responseTime);",
+                  "pm.test('Response meets configured total-time budget', () => {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseMs') || 50000));",
+                  "});",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  const request = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "  pm.test('Quiz includes source-backed four-option questions', () => {",
+                  "    pm.expect(data.model).to.be.a('string').and.not.empty;",
+                  "    pm.expect(data.questions).to.be.an('array').and.not.empty;",
+                  "    pm.expect(data.questions.length).to.be.at.most(request.count);",
+                  "    pm.expect(data.requestedCount).to.equal(request.count);",
+                  "    pm.expect(data.difficulty).to.equal(request.difficulty);",
+                  "    data.questions.forEach(q => {",
+                  "      pm.expect(q.prompt).to.be.a('string').and.not.empty;",
+                  "      pm.expect(q.options).to.be.an('array').with.lengthOf(4);",
+                  "      q.options.forEach(option => pm.expect(option).to.be.a('string').and.not.empty);",
+                  "      pm.expect(Number.isInteger(q.correctIndex)).to.equal(true);",
+                  "      pm.expect(q.correctIndex).to.be.within(0, 3);",
+                  "      pm.expect(q.explanation).to.be.a('string').and.not.empty;",
+                  "      pm.expect(q.sourceDocumentId).to.equal(request.documentId);",
+                  "      pm.expect(q.sourceExcerpt).to.be.a('string').and.not.empty;",
+                  "    });",
+                  "  });",
+                  "  console.info('Quiz model', data.model, 'questionCount', data.questions.length);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "FolioWeb"
+              },
+              {
+                "key": "Cookie",
+                "value": "FOLIO_SESSION={{sessionCookie}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"{{documentId}}\",\n  \"count\": 5,\n  \"difficulty\": \"standard\",\n  \"focus\": \"{{focus}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/ai/quiz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ai",
+                "quiz"
+              ]
+            },
+            "description": "Same quiz endpoint with standard difficulty."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

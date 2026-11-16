@@ -41,50 +41,55 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('reduced motion keeps pressed cards and tab opacity stable', (
-    tester,
-  ) async {
-    var index = 0;
-    late StateSetter update;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              update = setState;
-              return Scaffold(
-                body: FolioTabStack(
-                  index: index,
-                  children: [
-                    GlassContainer(onTap: () {}, child: const Text('Press me')),
-                    const Text('Next'),
-                  ],
-                ),
-              );
-            },
+  testWidgets(
+    'reduced motion keeps pressed cards stable and changes tabs immediately',
+    (tester) async {
+      var index = 0;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                update = setState;
+                return Scaffold(
+                  body: FolioTabStack(
+                    index: index,
+                    children: [
+                      GlassContainer(
+                        onTap: () {},
+                        child: const Text('Press me'),
+                      ),
+                      const Text('Next'),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Press me')),
-    );
-    await tester.pump(const Duration(milliseconds: 150));
-    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
-    await gesture.up();
-    update(() => index = 1);
-    await tester.pump();
-    final fade =
-        find
-            .descendant(
-              of: find.byType(FolioTabStack),
-              matching: find.byType(FadeTransition),
-            )
-            .first;
-    expect(tester.widget<FadeTransition>(fade).opacity.value, 1);
-    expect(tester.takeException(), isNull);
-  });
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Press me')),
+      );
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
+      await gesture.up();
+      update(() => index = 1);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Next').hitTestable(), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(FolioTabStack),
+          matching: find.byType(FadeTransition),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final width in [320.0, 412.0, 900.0]) {
     testWidgets('task list and calendar fit $width at large text', (

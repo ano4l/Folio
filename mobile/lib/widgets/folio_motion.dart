@@ -8,8 +8,8 @@ abstract final class FolioMotion {
   static const curve = Curves.easeOutCubic;
 }
 
-/// Retains page state while animating only the active page. Hidden tabs do not
-/// animate or receive keyboard focus, and repaint isolation protects siblings.
+/// Retains visited pages in the viewport's keep-alive bucket. Unlike Offstage,
+/// inactive pages aren't laid out when the visible tab changes constraints.
 class FolioTabStack extends StatefulWidget {
   const FolioTabStack({super.key, required this.index, required this.children});
   final int index;
@@ -18,32 +18,16 @@ class FolioTabStack extends StatefulWidget {
   State<FolioTabStack> createState() => _FolioTabStackState();
 }
 
-class _FolioTabStackState extends State<FolioTabStack>
-    with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 180),
-    value: 1,
+class _FolioTabStackState extends State<FolioTabStack> {
+  late final PageController _controller = PageController(
+    initialPage: widget.index,
   );
-  late final _fade = Tween<double>(
-    begin: .82,
-    end: 1,
-  ).animate(CurvedAnimation(parent: _controller, curve: FolioMotion.curve));
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) _controller.value = 1;
-  }
 
   @override
   void didUpdateWidget(FolioTabStack oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) {
-      if (MediaQuery.disableAnimationsOf(context)) {
-        _controller.value = 1;
-      } else {
-        _controller.forward(from: 0);
-      }
+    if (oldWidget.index != widget.index && _controller.hasClients) {
+      _controller.jumpToPage(widget.index);
     }
   }
 
@@ -54,20 +38,38 @@ class _FolioTabStackState extends State<FolioTabStack>
   }
 
   @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: _fade,
-    child: IndexedStack(
-      index: widget.index,
-      children: [
-        for (var i = 0; i < widget.children.length; i++)
-          TickerMode(
+  Widget build(BuildContext context) => PageView.builder(
+    controller: _controller,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: widget.children.length,
+    itemBuilder:
+        (context, i) => _RetainedTab(
+          key: ValueKey(i),
+          child: TickerMode(
             enabled: i == widget.index,
             child: ExcludeFocus(
               excluding: i != widget.index,
               child: RepaintBoundary(child: widget.children[i]),
             ),
           ),
-      ],
-    ),
+        ),
   );
+}
+
+class _RetainedTab extends StatefulWidget {
+  const _RetainedTab({super.key, required this.child});
+  final Widget child;
+  @override
+  State<_RetainedTab> createState() => _RetainedTabState();
+}
+
+class _RetainedTabState extends State<_RetainedTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
 }

@@ -18,7 +18,6 @@ class ActivityGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final total = math.max(documents, 1);
     final readyValue = ready / total;
     final attentionValue = attention / total;
@@ -27,47 +26,40 @@ class ActivityGauge extends StatelessWidget {
     return Semantics(
       label:
           'Vault activity. $documents documents, $ready ready, $attention need attention.',
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration:
-            reduceMotion ? Duration.zero : const Duration(milliseconds: 900),
-        curve: Curves.easeOutCubic,
-        builder:
-            (context, animation, _) => SizedBox.square(
-              dimension: 188,
-              child: CustomPaint(
-                painter: _GaugePainter(
-                  progress: animation,
-                  values: [protectedValue, readyValue, attentionValue],
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$documents',
-                        style: const TextStyle(
-                          fontSize: 30,
-                          height: 1,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'vault files',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.slate,
-                        ),
-                      ),
-                    ],
+      child: SizedBox.square(
+        dimension: 188,
+        child: CustomPaint(
+          painter: _GaugePainter(
+            progress: 1,
+            values: [protectedValue, readyValue, attentionValue],
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$documents',
+                  style: const TextStyle(
+                    fontSize: 30,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
-              ),
+                const SizedBox(height: 6),
+                const Text(
+                  'vault files',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.slate,
+                  ),
+                ),
+              ],
             ),
+          ),
+        ),
       ),
     );
   }
@@ -110,6 +102,14 @@ class _GaugePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GaugePainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.values != values;
+  bool shouldRepaint(covariant _GaugePainter oldDelegate) {
+    if (oldDelegate.progress != progress ||
+        oldDelegate.values.length != values.length) {
+      return true;
+    }
+    for (var i = 0; i < values.length; i++) {
+      if (oldDelegate.values[i] != values[i]) return true;
+    }
+    return false;
+  }
 }

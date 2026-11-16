@@ -152,6 +152,7 @@ void main() {
             'Keep my document question',
           );
           await tester.pump(const Duration(milliseconds: 400));
+          await tester.pump(const Duration(milliseconds: 300));
           expect(state.draftFor(fixtures.doc.id), 'Keep my document question');
           expect(
             tester.getBottomLeft(find.byTooltip('Send question')).dy,

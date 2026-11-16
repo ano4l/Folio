@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
@@ -25,27 +24,28 @@ class DocTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s =
-        _styles[type] ?? const _Style('Doc', AppColors.slate, AppColors.paper);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: s.bg.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: s.fg.withValues(alpha: 0.2), width: 0.5),
-          ),
-          child: Text(
-            s.label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: s.fg,
-              letterSpacing: -0.1,
-            ),
-          ),
+        _styles[type] ??
+        _Style(
+          type.trim().isEmpty ? 'Document' : type,
+          AppColors.slate,
+          AppColors.paper,
+        );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: s.bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: s.fg.withValues(alpha: 0.2), width: 0.5),
+      ),
+      child: Text(
+        s.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: s.fg,
+          letterSpacing: -0.1,
         ),
       ),
     );

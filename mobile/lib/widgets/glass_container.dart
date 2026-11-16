@@ -69,12 +69,18 @@ class _GlassContainerState extends State<GlassContainer> {
                 ),
               ),
             );
-    final wrapped = AnimatedScale(
-      scale: _pressed && !MediaQuery.disableAnimationsOf(context) ? .985 : 1,
-      duration: FolioMotion.duration(context, 120),
-      curve: FolioMotion.curve,
-      child: surface,
-    );
+    final wrapped =
+        widget.onTap == null
+            ? surface
+            : AnimatedScale(
+              scale:
+                  _pressed && !MediaQuery.disableAnimationsOf(context)
+                      ? .985
+                      : 1,
+              duration: FolioMotion.duration(context, 120),
+              curve: FolioMotion.curve,
+              child: surface,
+            );
     return widget.margin == null
         ? wrapped
         : Padding(padding: widget.margin!, child: wrapped);

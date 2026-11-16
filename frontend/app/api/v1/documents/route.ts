@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/server/auth";
 import { jsonError } from "@/lib/server/api";
 import { supabaseAdmin } from "@/lib/server/supabase";
-import { readableText } from "@/lib/server/document-pages";
+import { decodePages, readableText } from "@/lib/server/document-pages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       confidence: document.confidence == null ? 0 : Math.round(Number(document.confidence) * 100),
       summary: document.summary || (document.status === "READY" ? "Document is ready." : "Stored securely. Extraction has not completed yet."),
       entities: Array.isArray(document.entities) ? document.entities : [],
+      sourcePages: document.content ? decodePages(document.content) || [] : [],
       rawText: document.content ? readableText(document.content) : undefined,
     })) });
   } catch (error) { return jsonError(error); }

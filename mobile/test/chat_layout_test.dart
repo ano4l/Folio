@@ -44,6 +44,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'My saved question');
       await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 300));
       expect(state.draftFor(fixtures.doc.id), 'My saved question');
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('Send question'), findsOneWidget);

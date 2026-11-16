@@ -18,6 +18,12 @@ class DocumentScanner {
         'pages': pages,
       }))!;
 
+  static Future<String> rotatePdf(String path, int degrees) async =>
+      (await _channel.invokeMethod<String>('rotatePdf', {
+        'path': path,
+        'degrees': degrees,
+      }))!;
+
   static Future<String> wordToPdf(String path) =>
       WordPdfConverter.convert(path);
   static Future<List<Map<String, dynamic>>> extract(String path) async {

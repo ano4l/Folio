@@ -2,9 +2,9 @@
 
 ## 1. Product summary
 
-Folio is a secure student-finance document workspace. It helps students collect, understand, search, and act on funding-related paperwork without manually opening and comparing multiple PDFs.
+Folio is a secure student document workspace. It helps students collect, understand, search, and act on funding paperwork, and learn from their own course materials without manually opening and comparing multiple documents.
 
-The product combines a document vault, extraction pipeline, source-grounded question answering, deadline tracking, and privacy controls. The system must make the original source visible whenever it presents an extracted fact or AI-generated answer.
+The product combines a document vault, extraction pipeline, source-grounded question answering, deadline tracking, private study spaces, active-recall quizzes, saved notes, and privacy controls. Funding and study materials have separate workspaces and conversation scopes. The system must make the original source visible whenever it presents an extracted fact, study answer, or quiz explanation.
 
 ## 2. Problem statement
 
@@ -21,6 +21,8 @@ Folio addresses this by turning documents into an organised, searchable record w
 - Extract useful facts while preserving page, passage, and bounding-box provenance.
 - Answer questions only from documents the current user is authorised to access.
 - Make upcoming obligations visible and actionable.
+- Help students understand and practise from their own course documents using source-linked explanations and quizzes.
+- Keep useful study notes connected to their course and source document.
 - Provide privacy, consent, audit, retention, export, and deletion foundations aligned with POPIA.
 
 ### Non-goals
@@ -48,6 +50,12 @@ A staff member may review a student summary only after the student grants explic
 ### Operational persona: product/support operator
 
 An internal operator monitors processing failures, queue health, costs, and incidents without reading document contents unless a documented support procedure and authorisation allow it.
+
+### Study persona: revising student
+
+A university or college student receives lecture notes, readings, or other course material as PDFs, Word files, scans, or images. They need understandable explanations, low-friction practice, and a place to keep useful notes for later revision.
+
+**Needs:** course-specific source scope, interactive practice questions, explanations for wrong answers, readable source references, editable notes, and clear indication when pages could not be read.
 
 ## 5. Core user journeys
 
@@ -92,6 +100,14 @@ An internal operator monitors processing failures, queue health, costs, and inci
 3. API records consent and issues scoped access.
 4. Staff sees only the permitted material.
 5. Student can revoke access; future requests fail immediately and the audit trail remains.
+
+### Journey F: learn and review from a course document
+
+1. Student creates a private study space for a course and uploads course material or selects an already-ready source from their vault.
+2. Student asks for a plain-language explanation, a step-by-step lesson, or a concise summary, or starts a quiz.
+3. Folio creates source-grounded multiple-choice questions. The student selects an answer before the correct choice and explanation are shown.
+4. Feedback links back to the supporting page or source passage. Folio abstains if it cannot support a quiz item with readable text.
+5. Student saves an explanation or writes a note in the course space with its source link.
 
 ## 6. Functional requirements
 
@@ -138,6 +154,16 @@ An internal operator monitors processing failures, queue health, costs, and inci
 - Store source evidence, due date, timezone, confidence, status, and user corrections.
 - Sort by urgency and expose overdue, upcoming, completed, dismissed, and uncertain states.
 - Avoid sending reminders until the student confirms notification preferences.
+
+### Study spaces and active recall
+
+- Keep study spaces and funding records separate in navigation and assistant context.
+- Let students attach ready documents to a named study space without duplicating the source file.
+- Generate multiple-choice quiz items with four choices, one answer key, a short explanation, and a source reference.
+- Do not reveal the correct answer until the student chooses an option. Persist the selection and feedback with the conversation.
+- Save editable notes with document ID and page/passage provenance when available.
+- Reject malformed, uncited, or ungrounded quiz output; do not make a quiz when the document has too little readable text.
+- Describe study-space and note synchronization accurately; device-only storage must be labelled as such.
 
 ### Privacy and audit
 
@@ -199,3 +225,10 @@ Notifications, consent-based staff review, export/deletion, monitoring, backups,
 - **Model hallucination:** retrieval grounding, citation validation, refusal on insufficient evidence, and answer-quality evaluation.
 - **Operational cost growth:** file limits, queue budgets, model routing, retention policies, and per-user rate limits.
 - **Email identity abuse or delivery delays:** rate-limit account/MFA actions, keep responses generic, monitor Resend delivery, and provide a reviewed recovery path.
+
+
+## 12. October showcase implementation
+
+The active Flutter app now includes course spaces, configurable in-chat quizzes, editable source-linked notes, passage capture, revision cards with self-rated schedules, course quiz progress, notes/cards export, and exam revision plans. The document reader supports text search, provided page metadata, font sizing, original-file access, and text/PDF export. PDF page tools are exposed on Android and iOS, including file ordering and rotation. Vault favourites/filtering/sorting and metadata edits, richer task management/calendar export, conversation exports and persistent filtered device activity complete this slice.
+
+Study state and task data remain account-scoped on the device. Quiz generation and document metadata editing require the updated shared API deployment. See [SHOWCASE_ENHANCEMENTS.md](SHOWCASE_ENHANCEMENTS.md) for the walkthrough and exact capability limits.

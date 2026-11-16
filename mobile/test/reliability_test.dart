@@ -7,6 +7,7 @@ import 'package:folio_mobile/models/document.dart';
 import 'package:folio_mobile/services/api_service.dart';
 import 'package:folio_mobile/services/app_state.dart';
 import 'package:folio_mobile/services/workspace_store.dart';
+import 'package:folio_mobile/services/document_deadlines.dart';
 
 const doc = Document(
   id: 'doc-a',
@@ -64,7 +65,12 @@ class FakeApi extends ApiService {
 }
 
 AppState stateFor(FakeApi api, MemoryStore store) =>
-    AppState(api: api, store: store)
+    AppState(
+        api: api,
+        store: store,
+        deadlineExtractor:
+            (documents) async => extractDocumentDeadlines(documents),
+      )
       ..user = owner
       ..authStep = 'authenticated'
       ..documents = [doc];

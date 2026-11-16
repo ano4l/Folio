@@ -1,3 +1,5 @@
+import 'study.dart';
+
 class DocEntity {
   final String label;
   final String value;
@@ -20,6 +22,7 @@ class Document {
   final String summary;
   final List<DocEntity> entities;
   final String rawText;
+  final List<SourcePage> sourcePages;
 
   const Document({
     required this.id,
@@ -32,6 +35,7 @@ class Document {
     required this.summary,
     required this.entities,
     required this.rawText,
+    this.sourcePages = const [],
   });
 
   factory Document.fromJson(Map<String, dynamic> j) => Document(
@@ -48,6 +52,20 @@ class Document {
             .map((e) => DocEntity.fromJson(e))
             .toList(),
     rawText: j['rawText'] ?? '',
+    sourcePages:
+        (j['sourcePages'] as List? ?? [])
+            .whereType<Map>()
+            .where(
+              (p) =>
+                  p['page'] is num &&
+                  (p['page'] as num) >= 1 &&
+                  p['text'] is String,
+            )
+            .map(
+              (p) =>
+                  SourcePage((p['page'] as num).toInt(), '${p['text'] ?? ''}'),
+            )
+            .toList(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -61,7 +79,15 @@ class Document {
     'summary': summary,
     'entities': entities.map((e) => e.toJson()).toList(),
     'rawText': rawText,
+    'sourcePages':
+        sourcePages.map((p) => {'page': p.number, 'text': p.text}).toList(),
   };
+}
+
+class SourcePage {
+  const SourcePage(this.number, this.text);
+  final int number;
+  final String text;
 }
 
 class Deadline {
@@ -72,6 +98,8 @@ class Deadline {
   final int _days;
   final String? documentId;
   final String severity;
+  final String? sourceKey, sourceText;
+  final int? sourcePage;
   bool completed;
 
   Deadline({
@@ -83,9 +111,12 @@ class Deadline {
     this.documentId,
     required this.severity,
     this.completed = false,
+    this.sourceKey,
+    this.sourceText,
+    this.sourcePage,
   }) : _days = days;
 
-  DateTime? get dueDate => DateTime.tryParse(due);
+  late final DateTime? dueDate = DateTime.tryParse(due);
   int get days {
     final date = dueDate;
     if (date == null) return _days;
@@ -106,6 +137,9 @@ class Deadline {
     'severity': severity,
     'completed': completed,
     'documentId': documentId,
+    'sourceKey': sourceKey,
+    'sourceText': sourceText,
+    'sourcePage': sourcePage,
   };
 
   factory Deadline.fromJson(Map<String, dynamic> j) => Deadline(
@@ -117,6 +151,9 @@ class Deadline {
     severity: j['severity'] ?? 'low',
     completed: j['completed'] ?? false,
     documentId: j['documentId'],
+    sourceKey: j['sourceKey'],
+    sourceText: j['sourceText'],
+    sourcePage: j['sourcePage'],
   );
 }
 
@@ -136,6 +173,15 @@ class AuditEntry {
     required this.detail,
     required this.category,
   });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'time': time,
+    'actor': actor,
+    'action': action,
+    'detail': detail,
+    'category': category,
+  };
 
   factory AuditEntry.fromJson(Map<String, dynamic> j) => AuditEntry(
     id: j['id'] ?? 0,
@@ -158,6 +204,8 @@ class ChatMessage {
   final String? complianceLogic;
   final bool incomplete;
   final bool saved;
+  final StudyQuiz? quiz;
+  final QuizRequest? quizRequest;
 
   const ChatMessage({
     this.id = '',
@@ -170,6 +218,8 @@ class ChatMessage {
     this.complianceLogic,
     this.incomplete = false,
     this.saved = false,
+    this.quiz,
+    this.quizRequest,
   });
 
   ChatMessage copyWith({
@@ -178,6 +228,7 @@ class ChatMessage {
     bool? incomplete,
     bool? saved,
     List<Map<String, String>>? sources,
+    StudyQuiz? quiz,
   }) => ChatMessage(
     id: id,
     role: role ?? this.role,
@@ -185,6 +236,12 @@ class ChatMessage {
     sources: sources ?? this.sources,
     incomplete: incomplete ?? this.incomplete,
     saved: saved ?? this.saved,
+    quiz: quiz ?? this.quiz,
+    quizRequest: quizRequest,
+    sourceDoc: sourceDoc,
+    sourcePage: sourcePage,
+    complianceConfidence: complianceConfidence,
+    complianceLogic: complianceLogic,
   );
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -193,6 +250,12 @@ class ChatMessage {
     'sources': sources,
     'incomplete': incomplete || role == 'streaming',
     'saved': saved,
+    'sourceDoc': sourceDoc,
+    'sourcePage': sourcePage,
+    'complianceConfidence': complianceConfidence,
+    'complianceLogic': complianceLogic,
+    if (quiz != null) 'quiz': quiz!.toJson(),
+    if (quizRequest != null) 'quizRequest': quizRequest!.toJson(),
   };
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
     id: j['id'] ?? '',
@@ -200,11 +263,25 @@ class ChatMessage {
     text: j['text'] ?? '',
     incomplete: j['incomplete'] == true,
     saved: j['saved'] == true,
+    sourceDoc: j['sourceDoc'],
+    sourcePage: j['sourcePage'],
+    complianceConfidence: j['complianceConfidence'],
+    complianceLogic: j['complianceLogic'],
     sources:
         (j['sources'] as List? ?? [])
             .whereType<Map>()
             .map((s) => s.map((k, v) => MapEntry(k.toString(), v.toString())))
             .toList(),
+    quiz:
+        j['quiz'] is Map
+            ? StudyQuiz.fromJson(Map<String, dynamic>.from(j['quiz'] as Map))
+            : null,
+    quizRequest:
+        j['quizRequest'] is Map
+            ? QuizRequest.fromJson(
+              Map<String, dynamic>.from(j['quizRequest'] as Map),
+            )
+            : null,
   );
 }
 

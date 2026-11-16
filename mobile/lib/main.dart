@@ -2,16 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
 import 'services/app_state.dart';
+import 'services/frame_diagnostics.dart';
 import 'theme/app_theme.dart';
 import 'widgets/folio_logo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
   final state = AppState();
+  installFrameDiagnostics(
+    workspaceSummary:
+        () => {
+          'documents': state.documents.length,
+          'documentTextCharacters': state.documents.fold<int>(
+            0,
+            (sum, d) => sum + d.rawText.length,
+          ),
+          'tasks': state.deadlines.length,
+          'documentDeadlines':
+              state.deadlines.where((d) => d.sourceKey != null).length,
+          'datesToReview': state.deadlineDateReviews.length,
+        },
+  );
   runApp(ChangeNotifierProvider.value(value: state, child: const FolioApp()));
   await state.initialize();
 }
@@ -85,6 +102,7 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
     if (widget.lockOverlay) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      context.read<AppState>().flushWorkspace();
       context.read<AppState>().lock();
     }
   }
@@ -176,8 +194,8 @@ class _AuthenticatedGateState extends State<_AuthenticatedGate>
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
     if (!widget.lockOverlay) return const MainShell();
+    final state = context.read<AppState>();
     return Scaffold(
       body: SafeArea(
         child: Padding(

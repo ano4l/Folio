@@ -4,6 +4,7 @@ import { ApiError, jsonError, readJson, requireMutationHeader } from "@/lib/serv
 import { applySessionCookie, currentUser, hashSession, newSessionToken } from "@/lib/server/auth";
 import { authenticationOptions, consumeChallenge, decodeBase64Url, encodeBase64Url, passkeyOrigin, passkeyRpId, registrationOptions } from "@/lib/server/passkeys";
 import { supabaseAdmin } from "@/lib/server/supabase";
+import { isAdminEmail } from "@/lib/server/admin-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,11 +12,11 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     requireMutationHeader(request);
-    const { action } = await request.clone().json() as { action?: string };
-    if (action === "register-options") return registerOptions(request);
-    if (action === "register-verify") return registerVerify(request);
-    if (action === "login-options") return loginOptions(request);
-    if (action === "login-verify") return loginVerify(request);
+    const { action } = await readJson<{ action?: string }>(request.clone());
+    if (action === "register-options") return await registerOptions(request);
+    if (action === "register-verify") return await registerVerify(request);
+    if (action === "login-options") return await loginOptions(request);
+    if (action === "login-verify") return await loginVerify(request);
     throw new ApiError(404, "Not found");
   } catch (error) { return jsonError(error); }
 }
@@ -71,7 +72,7 @@ async function loginVerify(request: NextRequest) {
   await supabaseAdmin().from("passkey_credentials").update({ counter: verification.authenticationInfo.newCounter, last_used_at: new Date().toISOString() }).eq("id", credential.id);
   const { data: user } = await supabaseAdmin().from("app_users").select("id,email,display_name").eq("id", credential.user_id).eq("verified", true).single();
   if (!user) throw new ApiError(401, "Account is not available");
-  const response = NextResponse.json({ id: user.id, email: user.email, displayName: user.display_name });
+  const response = NextResponse.json({ id: user.id, email: user.email, displayName: user.display_name, isAdmin: isAdminEmail(user.email) });
   applySessionCookie(response, rawToken);
   return response;
 }

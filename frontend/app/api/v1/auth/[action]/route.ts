@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError, readJson, requireMutationHeader } from "@/lib/server/api";
 import { applySessionCookie, checkPassword, currentUser, hashOtp, hashPassword, hashSession, newSessionToken, normalizeEmail, sendOtp, SESSION_COOKIE } from "@/lib/server/auth";
 import { supabaseAdmin } from "@/lib/server/supabase";
+import { isAdminEmail } from "@/lib/server/admin-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { action } = await params;
     if (action !== "me") throw new ApiError(404, "Not found");
     const user = await currentUser(request);
-    return NextResponse.json({ id: user.id, email: user.email, displayName: user.displayName });
+    return NextResponse.json({ id: user.id, email: user.email, displayName: user.displayName, isAdmin: isAdminEmail(user.email) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return jsonError(error); }
 }
 
@@ -21,11 +22,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { action } = await params;
     requireMutationHeader(request);
-    if (action === "register") return register(request);
-    if (action === "login") return login(request);
-    if (action === "verify") return verify(request);
-    if (action === "resend") return resend(request);
-    if (action === "logout") return logout(request);
+    if (action === "register") return await register(request);
+    if (action === "login") return await login(request);
+    if (action === "verify") return await verify(request);
+    if (action === "resend") return await resend(request);
+    if (action === "logout") return await logout(request);
     throw new ApiError(404, "Not found");
   } catch (error) { return jsonError(error); }
 }
@@ -86,7 +87,7 @@ async function verify(request: NextRequest) {
   if (result.status === "EXPIRED") throw new ApiError(410, "This code has expired");
   if (result.status === "LOCKED") throw new ApiError(429, "Too many incorrect attempts; request a new code");
   if (result.status !== "VERIFIED" || !result.user_id || !result.email || !result.display_name) throw new ApiError(409, "This verification request cannot be used");
-  const response = NextResponse.json({ id: result.user_id, email: result.email, displayName: result.display_name });
+  const response = NextResponse.json({ id: result.user_id, email: result.email, displayName: result.display_name, isAdmin: isAdminEmail(result.email) });
   applySessionCookie(response, rawToken);
   return response;
 }

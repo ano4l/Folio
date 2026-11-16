@@ -11,15 +11,32 @@ import '../widgets/glass_container.dart';
 
 class DashboardScreen extends StatelessWidget {
   final VoidCallback? onAskTap;
-  const DashboardScreen({super.key, this.onAskTap});
+  final VoidCallback? onStudyTap;
+  const DashboardScreen({super.key, this.onAskTap, this.onStudyTap});
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    context.select<AppState, List<Object?>>(
+      (s) =>
+          s.navigationIndex == 0
+              ? [
+                s.user?.displayName,
+                s.documentsLoading,
+                ...s.documents,
+                ...s.deadlines.map((d) => (d, d.completed)),
+                s.auditLogs.length,
+              ]
+              : const <Object?>[],
+    );
+    final state = context.read<AppState>();
     final ready =
         state.documents.where((item) => item.status == 'Ready').length;
     final attention =
-        state.documents.where((item) => item.status == 'Error').length;
+        state.documents
+            .where(
+              (item) => item.status == 'Error' || item.status == 'Needs review',
+            )
+            .length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -48,6 +65,8 @@ class DashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 28),
                     _AskCard(onTap: onAskTap),
+                    const SizedBox(height: 12),
+                    _StudyCard(onTap: onStudyTap),
                     const SizedBox(height: 28),
                     if (wide)
                       Row(
@@ -307,6 +326,62 @@ class _AskCard extends StatelessWidget {
             Icon(CupertinoIcons.arrow_up_right, color: Colors.white, size: 18),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _StudyCard extends StatelessWidget {
+  const _StudyCard({required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Study from your course documents',
+    child: GlassContainer(
+      onTap: onTap,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.teal.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(CupertinoIcons.book_fill, color: AppColors.teal),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Study from your sources',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  context.select<AppState, int>((s) => s.studySpaces.length) ==
+                          0
+                      ? 'Learn, take a quiz and save notes'
+                      : '${context.select<AppState, int>((s) => s.studySpaces.length)} courses · ${context.select<AppState, int>((s) => s.studyCards.where((c) => c.due(DateTime.now())).length)} revision cards due',
+                  style: const TextStyle(fontSize: 12, color: AppColors.slate),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            CupertinoIcons.chevron_right,
+            size: 16,
+            color: AppColors.slate,
+          ),
+        ],
       ),
     ),
   );

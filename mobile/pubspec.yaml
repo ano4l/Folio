@@ -1,5 +1,5 @@
 name: folio_mobile
-description: "Folio - student financial document vault and AI assistant"
+description: "Folio - a student document workspace for funding and study"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -31,6 +31,15 @@ dependencies:
   archive: 4.0.9
   xml: 6.6.1
   pdf: 3.12.0
+  folio_documents:
+    path: plugins/folio_documents
+
+# Preserve the existing Dart/Android APIs while adding SwiftPM packaging to iOS.
+dependency_overrides:
+  flutter_secure_storage:
+    path: third_party/flutter_secure_storage
+  flutter_tts:
+    path: third_party/flutter_tts
 
 dev_dependencies:
   integration_test:
@@ -45,3 +54,10 @@ flutter:
     - assets/branding/folio-app-icon.png
     - assets/fonts/NotoSans-Regular.ttf
     - assets/fonts/OFL.txt
+    - assets/fonts/DMSans-Regular.ttf
+    - assets/fonts/DMSans-Medium.ttf
+    - assets/fonts/DMSans-SemiBold.ttf
+    - assets/fonts/DMSans-Bold.ttf
+    - assets/fonts/Fraunces-SemiBold.ttf
+    - assets/fonts/DMSans-OFL.txt
+    - assets/fonts/Fraunces-OFL.txt

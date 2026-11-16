@@ -28,6 +28,8 @@
 	<string>Use Face ID to unlock your Folio vault.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Use the camera to scan paperwork into your Folio document vault.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose document photos to import or convert into a PDF in Folio.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Use the microphone to ask Folio questions by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
@@ -49,8 +51,6 @@
 					<string>flutter</string>
 					<key>UISceneDelegateClassName</key>
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
 				</dict>
 			</array>
 		</dict>
@@ -59,8 +59,6 @@
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -9,11 +9,13 @@ import '../services/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/folio_logo.dart';
 import '../widgets/folio_motion.dart';
+import '../widgets/document_upload_activity.dart';
 import 'ask_ai_screen.dart';
 import 'dashboard_screen.dart';
 import 'deadlines_screen.dart';
 import 'documents_screen.dart';
 import 'security_screen.dart';
+import 'study_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -50,6 +52,20 @@ class _MainShellState extends State<MainShell> {
     context.read<AppState>().navigate(index);
   }
 
+  late final List<Widget> _screens = [
+    DashboardScreen(
+      onAskTap: () => _select(2),
+      onStudyTap:
+          () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const StudyScreen())),
+    ),
+    const DocumentsScreen(),
+    const AskAiScreen(),
+    const DeadlinesScreen(),
+    const SecurityScreen(),
+  ];
+
   @override
   Widget build(BuildContext context) {
     context.select<AppState, (int, int, String?)>(
@@ -66,16 +82,11 @@ class _MainShellState extends State<MainShell> {
                   feature.bounds.width > 0,
             )
             .firstOrNull;
-    final screens = [
-      DashboardScreen(onAskTap: () => _select(2)),
-      const DocumentsScreen(),
-      const AskAiScreen(),
-      const DeadlinesScreen(),
-      const SecurityScreen(),
-    ];
 
     return Scaffold(
-      extendBody: Theme.of(context).platform == TargetPlatform.iOS,
+      // Reserve the dock's measured height, including safe area and text scale,
+      // so nested screens' floating actions never sit underneath its buttons.
+      extendBody: false,
       body: SafeArea(
         bottom: false,
         child: Row(
@@ -91,7 +102,7 @@ class _MainShellState extends State<MainShell> {
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1120),
-                        child: FolioTabStack(index: _index, children: screens),
+                        child: FolioTabStack(index: _index, children: _screens),
                       ),
                     ),
                   ),
@@ -134,6 +145,15 @@ class _TopBar extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
         ),
+        IconButton(
+          tooltip: 'Study spaces',
+          onPressed:
+              () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const StudyScreen()),
+              ),
+          icon: const Icon(CupertinoIcons.book, size: 21),
+        ),
+        const DocumentUploadButton(),
         _NotificationButton(state: state),
         const SizedBox(width: 4),
         _ProfileButton(state: state),
@@ -286,36 +306,46 @@ class _BottomDock extends StatelessWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter:
-                highContrast
-                    ? ImageFilter.blur()
-                    : ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
+        child: RepaintBoundary(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              // A luminous glass-style shell without a backdrop texture pass
+              // on every scroll frame. Keep contrast independent of content.
+              gradient:
+                  highContrast
+                      ? null
+                      : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFFFDFEFE),
+                          Color(0xFFF0F6F5),
+                          Color(0xFFE5EEEC),
+                        ],
+                        stops: [0, .6, 1],
+                      ),
+              color: highContrast ? AppColors.card : null,
+              borderRadius: BorderRadius.circular(34),
+              border: Border.all(
                 color:
                     highContrast
-                        ? AppColors.card
-                        : AppColors.card.withValues(alpha: .78),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color:
-                      highContrast
-                          ? AppColors.slate
-                          : Colors.white.withValues(alpha: .9),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.ink.withValues(alpha: .1),
-                    blurRadius: 24,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                        ? AppColors.slate
+                        : Colors.white.withValues(alpha: .9),
               ),
-              child: tabs,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.ink.withValues(alpha: .1),
+                  blurRadius: 18,
+                  offset: const Offset(0, 5),
+                ),
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: .75),
+                  blurRadius: 1,
+                  offset: const Offset(0, -1),
+                ),
+              ],
             ),
+            child: tabs,
           ),
         ),
       ),
@@ -342,38 +372,44 @@ class _DockItem extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: AnimatedContainer(
-        duration:
-            MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minHeight: 50),
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        decoration: const BoxDecoration(color: Colors.transparent),
+        duration: FolioMotion.duration(context, 120),
+        curve: FolioMotion.curve,
+        constraints: const BoxConstraints(minHeight: 58),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 1),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(29),
+          border: Border.all(
+            color: selected ? AppColors.line : Colors.transparent,
+          ),
+          boxShadow:
+              selected
+                  ? const [
+                    BoxShadow(
+                      color: Color(0x100B132B),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                  : const [],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedContainer(
-              duration: FolioMotion.duration(context),
-              curve: FolioMotion.curve,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: selected ? AppColors.tealLight : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                selected ? item.activeIcon : item.icon,
-                size: 22,
-                color: selected ? AppColors.teal : AppColors.slate,
-              ),
+            Icon(
+              selected ? item.activeIcon : item.icon,
+              size: 22,
+              color: selected ? AppColors.tealAccent : AppColors.slate,
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               item.label == 'Documents' ? 'Docs' : item.label,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: selected ? AppColors.teal : AppColors.slate,
+                color: selected ? AppColors.tealAccent : AppColors.slate,
               ),
             ),
           ],
