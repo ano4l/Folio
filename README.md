@@ -21,6 +21,8 @@ npm ci --prefix frontend
 npm run dev
 ```
 
+Open `/admin/demo` for an admin preview with fictional users and activity. Use `admin.demo@example.com` / `FolioDemo2026!`, or select **Use demo details**, then **Open admin demo**. The regular admin area is at `/admin` and requires an authorized account.
+
 For mobile, install Flutter and run:
 
 ```sh

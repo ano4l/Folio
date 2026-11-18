@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, FolderOpen, LogOut, RefreshCw, Search, ShieldCheck, Sparkles, Users, X } from "lucide-react";
 import type { AdminOverview, AdminPageData, AdminSession, AdminUsage, AdminUser } from "../../../lib/admin-types";
+import { readAdminDemo, type AdminDemoData } from "../../../lib/admin-demo";
 import { API_URL } from "../workspace/api";
 import type { User } from "../workspace/models";
 import { ErrorNotice, PageHeader } from "../workspace/ui";
@@ -23,14 +24,16 @@ class AdminRequestError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
 
-async function getAdmin<T>(query: URLSearchParams, signal: AbortSignal): Promise<T> {
+async function getAdmin<T>(query: URLSearchParams, signal: AbortSignal, demoData?: AdminDemoData): Promise<T> {
+  signal.throwIfAborted();
+  if (demoData) return readAdminDemo(demoData, query) as T;
   const response = await fetch(`${API_URL}/v1/admin?${query}`, { credentials: "include", cache: "no-store", signal });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new AdminRequestError(body.message || "Administration is temporarily unavailable.", response.status);
   return body as T;
 }
 
-export default function AdminPage({ user, logout }: { user: User; logout: () => Promise<void> }) {
+export default function AdminPage({ user, logout, demoData }: { user: User; logout: () => Promise<void>; demoData?: AdminDemoData }) {
   const [view, setView] = useState<View>("users");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -52,7 +55,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
     setOverview(null);
     setOverviewError("");
     setOverviewLoading(true);
-    getAdmin<AdminOverview>(new URLSearchParams({ view: "overview" }), controller.signal)
+    getAdmin<AdminOverview>(new URLSearchParams({ view: "overview" }), controller.signal, demoData)
       .then((data) => { if (!controller.signal.aborted) setOverview(data); })
       .catch((problem: unknown) => {
         if (controller.signal.aborted) return;
@@ -63,7 +66,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
         } else setOverviewError(problem instanceof Error ? problem.message : "Unable to load the overview.");
       }).finally(() => { if (!controller.signal.aborted) setOverviewLoading(false); });
     return () => controller.abort();
-  }, [user.isAdmin, refresh, accessError]);
+  }, [user.isAdmin, refresh, accessError, demoData]);
 
   useEffect(() => {
     if (!user.isAdmin || accessError) return;
@@ -77,7 +80,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
     setResult(null);
     setError("");
     setLoading(true);
-    getAdmin<AdminPageData<Row>>(query, controller.signal)
+    getAdmin<AdminPageData<Row>>(query, controller.signal, demoData)
       .then((data) => {
         if (controller.signal.aborted) return;
         const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
@@ -96,7 +99,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
         } else setError(problem instanceof Error ? problem.message : "Unable to load these records.");
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [user.isAdmin, view, page, search, days, account, refresh, accessError]);
+  }, [user.isAdmin, view, page, search, days, account, refresh, accessError, demoData]);
 
   function changeView(next: View) {
     if (next === view) return;
@@ -119,6 +122,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
     <h1>{accessError ? "Access unavailable" : "Administrator access required"}</h1>
     <p>{accessError || "This account does not have permission to view administration."}</p>
     <div className="ws-actions"><a className="secondary" href="/"><ArrowLeft size={16} />Back to workspace</a><button className="primary" onClick={() => void logout()}>Sign in with another account</button></div>
+    <a className="fa-demo-link" href="/admin/demo">Explore the admin demo with sample data<ArrowRight size={14} /></a>
   </div></main>;
 
   const pages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
@@ -130,15 +134,16 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
       <span className="fa-nav-label">Manage</span>
       <nav aria-label="Administration navigation">{views.map(([key, label, Icon]) => <button key={key} className={view === key ? "active" : ""} aria-current={view === key ? "page" : undefined} onClick={() => changeView(key)}><Icon size={18} /><span>{label}</span></button>)}</nav>
       <a href="/" className="ws-admin-link fa-back"><ArrowLeft size={16} />Back to workspace</a>
-      <div className="ws-sidebar-bottom"><div className="ws-account"><span>{user.displayName.slice(0, 2).toUpperCase()}</span><div><b>{user.displayName}</b><small>{user.email}</small></div></div><button className="ws-signout" onClick={() => void logout()}><LogOut size={17} />Sign out</button></div>
+      <div className="ws-sidebar-bottom"><div className="ws-account"><span>{user.displayName.slice(0, 2).toUpperCase()}</span><div><b>{user.displayName}</b><small>{user.email}</small></div></div><button className="ws-signout" onClick={() => void logout()}><LogOut size={17} />{demoData ? "Exit demo" : "Sign out"}</button></div>
     </aside>
     <div className="ws-main">
-      <header className="ws-topbar fa-topbar"><a href="/" className="fa-mobile-home"><FolderOpen size={22} /><b>Folio</b></a><span className="fa-topbar-title"><ShieldCheck size={16} />Administrator workspace</span><a className="fa-workspace-return" href="/"><ArrowLeft size={14} />Workspace</a><button className="secondary fa-mobile-signout" onClick={() => void logout()}><LogOut size={15} />Sign out</button></header>
+      <header className="ws-topbar fa-topbar"><a href="/" className="fa-mobile-home"><FolderOpen size={22} /><b>Folio</b></a><span className="fa-topbar-title"><ShieldCheck size={16} />{demoData ? "Demo administrator workspace" : "Administrator workspace"}</span><a className="fa-workspace-return" href="/"><ArrowLeft size={14} />Workspace</a><button className="secondary fa-mobile-signout" onClick={() => void logout()}><LogOut size={15} />{demoData ? "Exit demo" : "Sign out"}</button></header>
       <div className="ws-content fa-content">
-        <PageHeader title="Administration" subtitle="A clear view of accounts, sessions and recorded AI activity."><button className="secondary" onClick={() => { setOverview(null); setResult(null); setRefresh((current) => current + 1); }} disabled={loading || overviewLoading}><RefreshCw size={15} className={loading || overviewLoading ? "spin" : ""} />Refresh</button></PageHeader>
-        <div className="fa-privacy"><ShieldCheck size={18} /><p><strong>Account insights. Private documents stay private.</strong><span>This page shows account details and activity metadata. It does not provide access to documents, prompts or AI answers.</span></p></div>
+        <PageHeader title="Administration" subtitle="A clear view of accounts, sessions and recorded AI activity.">{!demoData && <a className="secondary" href="/admin/demo">View demo</a>}<button className="secondary" onClick={() => { setOverview(null); setResult(null); setRefresh((current) => current + 1); }} disabled={loading || overviewLoading}><RefreshCw size={15} className={loading || overviewLoading ? "spin" : ""} />Refresh</button></PageHeader>
+        {demoData && <div className="fa-demo-banner" role="note"><Sparkles size={19} /><p><strong>Demo mode · fictional data</strong><span>Explore sample users, sessions and AI activity. These records are for demonstration only.</span></p><a href="/admin">Real admin sign-in<ArrowRight size={14} /></a></div>}
+        {!demoData && <div className="fa-privacy"><ShieldCheck size={18} /><p><strong>Account insights. Private documents stay private.</strong><span>This page shows account details and activity metadata. It does not provide access to documents, prompts or AI answers.</span></p></div>}
         <section className="fa-overview" aria-label="Global account overview" aria-busy={overviewLoading}>
-          <div className="fa-overview-label"><span className="fa-eyebrow">Across Folio</span><span>Global totals · all accounts</span></div>
+          <div className="fa-overview-label"><span className="fa-eyebrow">{demoData ? "Across the demo" : "Across Folio"}</span><span>{demoData ? "Sample totals · fictional accounts" : "Global totals · all accounts"}</span></div>
           <dl className="fa-metrics">
             <div><dt><Users size={16} />Accounts</dt><dd>{overview ? number(overview.totalUsers) : "—"}</dd><p>{overview ? `${number(overview.verifiedUsers)} verified` : overviewLoading ? "Loading overview…" : "Overview unavailable"}</p></div>
             <div><dt><ShieldCheck size={16} />Active sessions</dt><dd>{overview ? number(overview.activeSessions) : "—"}</dd><p>Unexpired and not revoked</p></div>
@@ -161,7 +166,7 @@ export default function AdminPage({ user, logout }: { user: User; logout: () => 
             {result && !loading && !error && result.total > 0 && <footer className="fa-pagination"><p>{number((result.page - 1) * result.pageSize + 1)}–{number(Math.min(result.page * result.pageSize, result.total))} of {number(result.total)}</p><div><button className="secondary" aria-label="Previous page" disabled={page <= 1} onClick={() => { setResult(null); setPage((current) => current - 1); }}><ChevronLeft size={16} /><span>Previous</span></button><span className="fa-page-number">{page} / {pages}</span><button className="secondary" aria-label="Next page" disabled={page >= pages} onClick={() => { setResult(null); setPage((current) => current + 1); }}><span>Next</span><ChevronRight size={16} /></button></div></footer>}
           </div>
         </section>
-        <p className="fa-footer-note"><ShieldCheck size={13} />Read-only administration · session timestamps shown in your browser’s timezone</p>
+        <p className="fa-footer-note"><ShieldCheck size={13} />{demoData ? "Read-only demo · fictional records" : "Read-only administration"} · session timestamps shown in your browser’s timezone</p>
       </div>
     </div>
   </main>;

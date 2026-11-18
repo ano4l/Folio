@@ -375,9 +375,9 @@ export default function FolioApp({ initialView = "workspace" }: { initialView?: 
           <h1>
             {authMode === "register"
               ? "Create your secure Folio."
-              : "Welcome back to Folio."}
+              : initialView === "admin" ? "Sign in to administration." : "Welcome back to Folio."}
           </h1>
-          <p>Sign in to your documents, courses and revision.</p>
+          <p>{initialView === "admin" ? "Use your administrator account to continue." : "Sign in to your documents, courses and revision."}</p>
 
           <form onSubmit={handleCredentialsSubmit} className="login-form">
             {authMode === "register" && (
@@ -394,7 +394,7 @@ export default function FolioApp({ initialView = "workspace" }: { initialView?: 
               </label>
             )}
             <label>
-              Student Email Address
+              {initialView === "admin" ? "Admin Email Address" : "Student Email Address"}
               <input
                 type="email"
                 value={emailInput}
@@ -491,6 +491,7 @@ export default function FolioApp({ initialView = "workspace" }: { initialView?: 
           <small className="login-foot">
             Your account is protected with email verification.
           </small>
+          {initialView === "admin" && <a className="fa-demo-link" href="/admin/demo">Explore the admin demo with sample data<ArrowRight size={14} /></a>}
         </div>
       </main>
     );

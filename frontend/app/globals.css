@@ -5562,6 +5562,26 @@ button {
 }
 
 /* Folio administration: account metadata, separate from the personal vault. */
+.fa-demo-link { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 20px; color: var(--teal); font-size: 12px; line-height: 1.6; text-decoration: none; }
+.fa-demo-link:hover { text-decoration: underline; }
+.fa-demo-tag { display: inline-flex; align-items: center; gap: 6px; color: #875522; background: var(--amber-light); padding: 5px 9px; border-radius: 4px; font-size: 11px; margin-top: 25px; }
+.fa-demo-login .fa-demo-tag + h1 { margin-top: 14px; }
+.fa-demo-credentials { background: #f5f4ef; border: 1px solid var(--line); border-radius: 6px; padding: 17px; margin-top: 22px; font-size: 12px; }
+.fa-demo-credentials > strong { font-weight: 600; }
+.fa-demo-credentials dl { margin: 12px 0 16px; }
+.fa-demo-credentials dl > div { margin-top: 9px; }
+.fa-demo-credentials dt { color: var(--slate); font-size: 10px; margin-bottom: 3px; }
+.fa-demo-credentials dd { font-family: 'DM Mono', monospace; margin: 0; overflow-wrap: anywhere; }
+.fa-demo-banner { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; margin-bottom: 18px; border: 1px solid #e5c68f; border-radius: 6px; background: #fff8e9; color: #78501e; }
+.fa-demo-banner > svg { flex-shrink: 0; margin-top: 2px; }
+.fa-demo-banner p { margin: 0; font-size: 12px; line-height: 1.6; }
+.fa-demo-banner strong, .fa-demo-banner p span { display: block; }
+.fa-demo-banner a { display: inline-flex; align-items: center; gap: 6px; color: #78501e; font-size: 12px; margin-left: auto; white-space: nowrap; padding-top: 2px; }
+@media (max-width: 600px) {
+  .fa-demo-banner { flex-wrap: wrap; padding: 13px 12px; gap: 8px; }
+  .fa-demo-banner p { flex: 1; }
+  .fa-demo-banner a { flex-basis: calc(100% - 27px); margin-left: 27px; }
+}
 .ws-sidebar nav .ws-admin-link,
 .ws-admin-link {
   display: flex;
